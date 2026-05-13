@@ -13,7 +13,7 @@ interface UiStore {
   converterDirection: 'json-to-swagger' | 'swagger-to-json';
   showValidationPanel: boolean;
   isSaving: boolean;
-  testBaseUrl: string;
+  testActiveServer: string;
   testAuthToken: string;
   endpointTestUrls: Record<string, string>;
 
@@ -26,7 +26,7 @@ interface UiStore {
   setConverterDirection: (d: UiStore['converterDirection']) => void;
   setShowValidation: (v: boolean) => void;
   setIsSaving: (v: boolean) => void;
-  setTestBaseUrl: (u: string) => void;
+  setTestActiveServer: (s: string) => void;
   setTestAuthToken: (t: string) => void;
   setEndpointTestUrl: (id: string, url: string) => void;
 }
@@ -36,12 +36,12 @@ export const useUiStore = create<UiStore>()((set) => ({
   editorMode: 'visual',
   darkMode: true,
   sidebarCollapsed: false,
-  rightPanelCollapsed: false,
+  rightPanelCollapsed: true,
   isConverterMode: false,
   converterDirection: 'json-to-swagger',
   showValidationPanel: false,
   isSaving: false,
-  testBaseUrl: 'http://localhost:3000',
+  testActiveServer: '',
   testAuthToken: '',
   endpointTestUrls: {},
 
@@ -54,7 +54,7 @@ export const useUiStore = create<UiStore>()((set) => ({
   setConverterDirection: (d) => set({ converterDirection: d }),
   setShowValidation: (v) => set({ showValidationPanel: v }),
   setIsSaving: (v) => set({ isSaving: v }),
-  setTestBaseUrl: (u) => set({ testBaseUrl: u }),
+  setTestActiveServer: (s) => set({ testActiveServer: s }),
   setTestAuthToken: (t) => set({ testAuthToken: t }),
   setEndpointTestUrl: (id, url) => set((s) => ({ endpointTestUrls: { ...s.endpointTestUrls, [id]: url } })),
 }));

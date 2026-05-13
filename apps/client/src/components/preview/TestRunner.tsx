@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useUiStore } from '../../store/useUiStore';
 import { useApiSpecStore } from '../../store/useApiSpecStore';
 import type { Endpoint } from '@modern-api-studio/types';
@@ -10,9 +10,10 @@ interface Props {
 }
 
 export function TestRunner({ endpoint, mockBodyStr }: Props) {
-  const { testBaseUrl, testAuthToken, setTestAuthToken, endpointTestUrls, setEndpointTestUrl } = useUiStore();
+  const { testActiveServer, testAuthToken, setTestAuthToken, endpointTestUrls, setEndpointTestUrl } = useUiStore();
   const { spec } = useApiSpecStore();
   const [activeTab, setActiveTab] = useState<'params' | 'headers' | 'body' | 'response'>('params');
+  const prevSrvNameRef = useRef(testActiveServer || (spec.servers.length > 0 ? spec.servers[0].name : ''));
   
   // State for dynamic fields
   const [pathParams, setPathParams] = useState<Record<string, string>>({});
@@ -44,9 +45,18 @@ export function TestRunner({ endpoint, mockBodyStr }: Props) {
     
     // Initialize or load saved URL for this specific endpoint
     if (endpointTestUrls[endpoint.id]) {
-      setRequestUrl(endpointTestUrls[endpoint.id]);
+      // Clean up any old {{VAR}} templates just in case
+      let cachedUrl = endpointTestUrls[endpoint.id];
+      spec.servers.forEach(srv => {
+        if (srv.name && srv.url) {
+          cachedUrl = cachedUrl.replace(new RegExp(`\\{\\{${srv.name}\\}\\}`, 'g'), srv.url.replace(/\/$/, ''));
+        }
+      });
+      setRequestUrl(cachedUrl);
     } else {
-      const defaultPrefix = spec.servers.length > 0 && spec.servers[0].name ? `{{${spec.servers[0].name}}}` : testBaseUrl.replace(/\/$/, '');
+      const activeSrvName = testActiveServer || (spec.servers.length > 0 ? spec.servers[0].name : '');
+      const activeServer = spec.servers.find(s => s.name === activeSrvName);
+      const defaultPrefix = (activeServer?.url || '').replace(/\/$/, '');
       const initialUrl = `${defaultPrefix}${endpoint.path}`;
       setRequestUrl(initialUrl);
       setEndpointTestUrl(endpoint.id, initialUrl);
@@ -54,9 +64,35 @@ export function TestRunner({ endpoint, mockBodyStr }: Props) {
     
     setResponse(null);
     setActiveTab('params');
-  }, [endpoint.id, endpoint.parameters, endpoint.method, endpoint.path, mockBodyStr, spec.servers, testBaseUrl]);
+    prevSrvNameRef.current = testActiveServer || (spec.servers.length > 0 ? spec.servers[0].name : '');
+  }, [endpoint.id, endpoint.parameters, endpoint.method, endpoint.path, mockBodyStr, spec.servers]);
+
+  // Update requestUrl prefix immediately when active server changes
+  useEffect(() => {
+    const currentSrvName = testActiveServer || (spec.servers.length > 0 ? spec.servers[0].name : '');
+    const prevSrvName = prevSrvNameRef.current;
+
+    if (currentSrvName !== prevSrvName) {
+      const oldServer = spec.servers.find(s => s.name === prevSrvName);
+      const newServer = spec.servers.find(s => s.name === currentSrvName);
+      const oldPrefix = (oldServer?.url || '').replace(/\/$/, '');
+      const newPrefix = (newServer?.url || '').replace(/\/$/, '');
+
+      if (oldPrefix && requestUrl.startsWith(oldPrefix)) {
+        const updated = requestUrl.replace(oldPrefix, newPrefix);
+        setRequestUrl(updated);
+        setEndpointTestUrl(endpoint.id, updated);
+      } else {
+        const updated = `${newPrefix}${endpoint.path}`;
+        setRequestUrl(updated);
+        setEndpointTestUrl(endpoint.id, updated);
+      }
+      prevSrvNameRef.current = currentSrvName;
+    }
+  }, [testActiveServer, spec.servers, requestUrl, endpoint.path, endpoint.id, setEndpointTestUrl]);
 
   const hasBody = ['POST', 'PUT', 'PATCH'].includes(endpoint.method);
+  const authLabel = endpoint.security && endpoint.security.length > 0 ? `Auth Token (${endpoint.security.join(', ')})` : 'Auth Token';
 
   const handleSend = async () => {
     setIsTesting(true);
@@ -83,6 +119,16 @@ export function TestRunner({ endpoint, mockBodyStr }: Props) {
       Object.entries(queryParams).forEach(([k, v]) => {
         if (v) q.append(k, v);
       });
+      
+      // Handle query-based API Key
+      if (testAuthToken && endpoint.security && endpoint.security.length > 0) {
+        const secName = endpoint.security[0];
+        const scheme = spec.components.securitySchemes.find(s => s.name === secName);
+        if (scheme?.type === 'apiKey' && scheme.in === 'query' && scheme.keyName) {
+          q.append(scheme.keyName, testAuthToken);
+        }
+      }
+
       const qStr = q.toString();
       if (qStr) urlStr += `?${qStr}`;
 
@@ -91,9 +137,27 @@ export function TestRunner({ endpoint, mockBodyStr }: Props) {
       Object.entries(headers).forEach(([k, v]) => {
         if (v) reqHeaders.append(k, v);
       });
-      if (testAuthToken) {
-        reqHeaders.append('Authorization', testAuthToken);
+      
+      if (testAuthToken && endpoint.security && endpoint.security.length > 0) {
+        const secName = endpoint.security[0];
+        const scheme = spec.components.securitySchemes.find(s => s.name === secName);
+        
+        if (scheme) {
+          if (scheme.type === 'bearer') {
+            const tokenVal = testAuthToken.replace(/^Bearer\s+/i, '');
+            reqHeaders.append('Authorization', `Bearer ${tokenVal}`);
+          } else if (scheme.type === 'basic') {
+            const tokenVal = testAuthToken.replace(/^Basic\s+/i, '');
+            reqHeaders.append('Authorization', `Basic ${tokenVal}`);
+          } else if (scheme.type === 'apiKey' && scheme.in === 'header' && scheme.keyName) {
+            reqHeaders.append(scheme.keyName, testAuthToken);
+          } else if (scheme.type !== 'apiKey' || scheme.in !== 'query') {
+            // Fallback for other header/cookie auth
+            reqHeaders.append('Authorization', testAuthToken);
+          }
+        }
       }
+
       if (hasBody && !reqHeaders.has('Content-Type')) {
         reqHeaders.append('Content-Type', 'application/json');
       }
@@ -152,13 +216,15 @@ export function TestRunner({ endpoint, mockBodyStr }: Props) {
             <input className="input input-mono" value={requestUrl} onChange={e => {
               setRequestUrl(e.target.value);
               setEndpointTestUrl(endpoint.id, e.target.value);
-            }} placeholder="{{URL}}/api/v1/resource" style={{ border: 'none', background: 'transparent', flex: 1 }} />
+            }} placeholder="https://api.example.com/api/v1/resource" style={{ border: 'none', background: 'transparent', flex: 1, paddingLeft: 12 }} />
           </div>
         </div>
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label className="label" style={{ color: 'var(--accent-purple)' }}>Auth Token (Bearer)</label>
-          <input className="input input-mono" type="password" value={testAuthToken} onChange={e => setTestAuthToken(e.target.value)} placeholder="eyJ..." />
-        </div>
+        {endpoint.security && endpoint.security.length > 0 && (
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="label" style={{ color: 'var(--accent-purple)' }}>{authLabel}</label>
+            <textarea className="input input-mono" value={testAuthToken} onChange={e => setTestAuthToken(e.target.value)} placeholder="Token value..." style={{ minHeight: 60, resize: 'vertical', fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }} />
+          </div>
+        )}
       </div>
 
       {/* Runner Interface */}
@@ -219,7 +285,7 @@ export function TestRunner({ endpoint, mockBodyStr }: Props) {
               ))
             )}
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
-              Note: <strong>Authorization (Bearer)</strong> and <strong>Content-Type</strong> are injected automatically based on the Environment above and the JSON body.
+              Note: <strong>Authorization</strong> and <strong>Content-Type</strong> are injected automatically based on the Environment above and the JSON body.
             </div>
           </div>
         )}

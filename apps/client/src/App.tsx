@@ -1,6 +1,7 @@
 import { useUiStore } from './store/useUiStore';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
+import { RightSidebar } from './components/RightSidebar';
 import { DesignerPanel } from './components/designer/DesignerPanel';
 import { ApiInfoForm } from './components/designer/ApiInfoForm';
 import { ConverterPanel } from './components/converter/ConverterPanel';
@@ -31,6 +32,7 @@ export default function App() {
         <main style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', animation: 'fadeIn 0.2s ease' }}>
           {renderPanel()}
         </main>
+        <RightSidebar />
       </div>
     </div>
   );
