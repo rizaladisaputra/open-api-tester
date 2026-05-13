@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useUiStore } from '../../store/useUiStore';
+import { useApiSpecStore } from '../../store/useApiSpecStore';
 import type { Endpoint } from '@modern-api-studio/types';
 import MonacoEditor from '@monaco-editor/react';
 
@@ -9,7 +10,8 @@ interface Props {
 }
 
 export function TestRunner({ endpoint, mockBodyStr }: Props) {
-  const { testBaseUrl, setTestBaseUrl, testAuthToken, setTestAuthToken } = useUiStore();
+  const { testBaseUrl, testAuthToken, setTestAuthToken, endpointTestUrls, setEndpointTestUrl } = useUiStore();
+  const { spec } = useApiSpecStore();
   const [activeTab, setActiveTab] = useState<'params' | 'headers' | 'body' | 'response'>('params');
   
   // State for dynamic fields
@@ -20,6 +22,7 @@ export function TestRunner({ endpoint, mockBodyStr }: Props) {
   
   // Execution state
   const [isTesting, setIsTesting] = useState(false);
+  const [requestUrl, setRequestUrl] = useState('');
   const [response, setResponse] = useState<{ status: number; statusText: string; time: number; size: number; data: string } | null>(null);
 
   // Initialize params when endpoint changes
@@ -38,9 +41,20 @@ export function TestRunner({ endpoint, mockBodyStr }: Props) {
     setQueryParams(newQueryParams);
     setHeaders(newHeaders);
     setRequestBody(mockBodyStr);
+    
+    // Initialize or load saved URL for this specific endpoint
+    if (endpointTestUrls[endpoint.id]) {
+      setRequestUrl(endpointTestUrls[endpoint.id]);
+    } else {
+      const defaultPrefix = spec.servers.length > 0 && spec.servers[0].name ? `{{${spec.servers[0].name}}}` : testBaseUrl.replace(/\/$/, '');
+      const initialUrl = `${defaultPrefix}${endpoint.path}`;
+      setRequestUrl(initialUrl);
+      setEndpointTestUrl(endpoint.id, initialUrl);
+    }
+    
     setResponse(null);
     setActiveTab('params');
-  }, [endpoint, mockBodyStr]);
+  }, [endpoint.id, endpoint.parameters, endpoint.method, endpoint.path, mockBodyStr, spec.servers, testBaseUrl]);
 
   const hasBody = ['POST', 'PUT', 'PATCH'].includes(endpoint.method);
 
@@ -51,7 +65,15 @@ export function TestRunner({ endpoint, mockBodyStr }: Props) {
 
     try {
       // 1. Build URL
-      let urlStr = testBaseUrl.replace(/\/$/, '') + endpoint.path;
+      let urlStr = requestUrl;
+      
+      // Substitute {{VARIABLE}} from spec.servers
+      spec.servers.forEach(srv => {
+        if (srv.name && srv.url) {
+          urlStr = urlStr.replace(new RegExp(`\\{\\{${srv.name}\\}\\}`, 'g'), srv.url.replace(/\/$/, ''));
+        }
+      });
+
       // replace path params
       Object.entries(pathParams).forEach(([k, v]) => {
         if (v) urlStr = urlStr.replace(`{${k}}`, encodeURIComponent(v));
@@ -123,15 +145,19 @@ export function TestRunner({ endpoint, mockBodyStr }: Props) {
     <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {/* Environment Settings */}
       <div style={{ background: 'var(--bg-overlay)', padding: 12, borderRadius: 8, border: '1px solid var(--border)' }}>
-        <div style={{ display: 'flex', gap: 12 }}>
-          <div className="form-group" style={{ flex: 2, marginBottom: 0 }}>
-            <label className="label" style={{ color: 'var(--accent-blue)' }}>Server Environment URL</label>
-            <input className="input input-mono" value={testBaseUrl} onChange={e => setTestBaseUrl(e.target.value)} placeholder="http://localhost:3000" />
+        <div className="form-group" style={{ marginBottom: 12 }}>
+          <label className="label" style={{ color: 'var(--accent-blue)' }}>Endpoint URL</label>
+          <div style={{ display: 'flex', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-surface)', overflow: 'hidden', alignItems: 'center' }}>
+            <div style={{ padding: '0 12px', fontWeight: 600, color: 'var(--accent-blue)', borderRight: '1px solid var(--border)' }}>{endpoint.method}</div>
+            <input className="input input-mono" value={requestUrl} onChange={e => {
+              setRequestUrl(e.target.value);
+              setEndpointTestUrl(endpoint.id, e.target.value);
+            }} placeholder="{{URL}}/api/v1/resource" style={{ border: 'none', background: 'transparent', flex: 1 }} />
           </div>
-          <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-            <label className="label" style={{ color: 'var(--accent-purple)' }}>Auth Token (Bearer)</label>
-            <input className="input input-mono" type="password" value={testAuthToken} onChange={e => setTestAuthToken(e.target.value)} placeholder="eyJ..." />
-          </div>
+        </div>
+        <div className="form-group" style={{ marginBottom: 0 }}>
+          <label className="label" style={{ color: 'var(--accent-purple)' }}>Auth Token (Bearer)</label>
+          <input className="input input-mono" type="password" value={testAuthToken} onChange={e => setTestAuthToken(e.target.value)} placeholder="eyJ..." />
         </div>
       </div>
 

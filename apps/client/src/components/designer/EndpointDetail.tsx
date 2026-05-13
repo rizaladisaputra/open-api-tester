@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useApiSpecStore } from '../../store/useApiSpecStore';
+import { useUiStore } from '../../store/useUiStore';
 import type { Endpoint, HttpMethod, EndpointParameter, ResponseDefinition, SchemaProperty } from '@modern-api-studio/types';
 import { v4 as uuidv4 } from 'uuid';
 import { ParamsEditor } from './ParamsEditor';
@@ -14,6 +15,7 @@ interface Props { endpoint: Endpoint; }
 
 export function EndpointDetail({ endpoint }: Props) {
   const { spec, updateEndpoint, deleteEndpoint } = useApiSpecStore();
+  const { testBaseUrl, setTestBaseUrl } = useUiStore();
   const [activeTab, setActiveTab] = useState<DetailTab>('info');
 
   const update = (changes: Partial<Endpoint>) => updateEndpoint(endpoint.id, changes);

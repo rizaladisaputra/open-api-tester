@@ -15,6 +15,7 @@ interface UiStore {
   isSaving: boolean;
   testBaseUrl: string;
   testAuthToken: string;
+  endpointTestUrls: Record<string, string>;
 
   setActivePanel: (p: ActivePanel) => void;
   setEditorMode: (m: EditorMode) => void;
@@ -27,6 +28,7 @@ interface UiStore {
   setIsSaving: (v: boolean) => void;
   setTestBaseUrl: (u: string) => void;
   setTestAuthToken: (t: string) => void;
+  setEndpointTestUrl: (id: string, url: string) => void;
 }
 
 export const useUiStore = create<UiStore>()((set) => ({
@@ -41,6 +43,7 @@ export const useUiStore = create<UiStore>()((set) => ({
   isSaving: false,
   testBaseUrl: 'http://localhost:3000',
   testAuthToken: '',
+  endpointTestUrls: {},
 
   setActivePanel: (p) => set({ activePanel: p }),
   setEditorMode: (m) => set({ editorMode: m }),
@@ -53,4 +56,5 @@ export const useUiStore = create<UiStore>()((set) => ({
   setIsSaving: (v) => set({ isSaving: v }),
   setTestBaseUrl: (u) => set({ testBaseUrl: u }),
   setTestAuthToken: (t) => set({ testAuthToken: t }),
+  setEndpointTestUrl: (id, url) => set((s) => ({ endpointTestUrls: { ...s.endpointTestUrls, [id]: url } })),
 }));

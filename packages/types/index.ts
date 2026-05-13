@@ -163,6 +163,7 @@ export interface ApiInfo {
 }
 
 export interface ServerDefinition {
+  name?: string;
   url: string;
   description?: string;
 }

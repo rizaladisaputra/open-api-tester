@@ -54,12 +54,23 @@ export function ApiInfoForm() {
       {/* Servers */}
       <div className="card">
         <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ color: 'var(--accent-teal)' }}>⛁</span> Servers
+          <span style={{ color: 'var(--accent-teal)' }}>⛁</span> Environment Servers
+        </div>
+        <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 12 }}>
+          Define base URLs for your environments. You can assign a Variable Name (e.g., "URL") to use it like <code>{"{{URL}}"}</code> in the Test Runner.
         </div>
         {spec.servers.map((srv, i) => (
-          <div key={i} className="form-row" style={{ marginBottom: 8 }}>
+          <div key={i} className="form-row" style={{ marginBottom: 8, alignItems: 'flex-start' }}>
+            <div className="form-group" style={{ flex: 1 }}>
+              <label className="label">Var Name</label>
+              <input className="input input-mono" value={srv.name || ''} onChange={(e) => {
+                const servers = [...spec.servers];
+                servers[i] = { ...servers[i], name: e.target.value };
+                useApiSpecStore.getState().setSpec({ ...spec, servers });
+              }} placeholder="URL" />
+            </div>
             <div className="form-group" style={{ flex: 2 }}>
-              <label className="label">URL</label>
+              <label className="label">Server URL</label>
               <input className="input input-mono" value={srv.url} onChange={(e) => {
                 const servers = [...spec.servers];
                 servers[i] = { ...servers[i], url: e.target.value };
@@ -74,10 +85,14 @@ export function ApiInfoForm() {
                 useApiSpecStore.getState().setSpec({ ...spec, servers });
               }} placeholder="Production" />
             </div>
+            <button className="btn btn-ghost btn-sm btn-icon" style={{ marginTop: 26, color: 'var(--accent-red)' }} onClick={() => {
+              const servers = spec.servers.filter((_, idx) => idx !== i);
+              useApiSpecStore.getState().setSpec({ ...spec, servers });
+            }}>✕</button>
           </div>
         ))}
         <button className="btn btn-ghost btn-sm" onClick={() => {
-          const servers = [...spec.servers, { url: 'https://', description: 'New server' }];
+          const servers = [...spec.servers, { name: 'URL', url: 'https://', description: 'New Environment' }];
           useApiSpecStore.getState().setSpec({ ...spec, servers });
         }}>+ Add Server</button>
       </div>
