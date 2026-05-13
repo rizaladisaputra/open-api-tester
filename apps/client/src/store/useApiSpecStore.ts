@@ -1,0 +1,359 @@
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import { v4 as uuidv4 } from 'uuid';
+import type {
+  ApiSpec, Endpoint, ApiTag, SchemaComponent, SecurityScheme,
+  HttpMethod, ResponseDefinition, EndpointParameter, RequestBodyDefinition,
+} from '@modern-api-studio/types';
+
+const DEFAULT_SPEC: ApiSpec = {
+  id: uuidv4(),
+  info: { title: 'My API', version: '1.0.0', description: 'Built with Modern API Studio' },
+  servers: [{ url: 'https://api.example.com', description: 'Production' }],
+  tags: [
+    { id: uuidv4(), name: 'Users', description: 'User operations' },
+    { id: uuidv4(), name: 'Products', description: 'Product operations' },
+  ],
+  endpoints: [
+    {
+      id: uuidv4(),
+      path: '/api/v1/users',
+      method: 'GET',
+      summary: 'List all users',
+      description: 'Returns a paginated list of users',
+      operationId: 'listUsers',
+      tags: ['Users'],
+      deprecated: false,
+      security: ['bearerAuth'],
+      parameters: [
+        { id: uuidv4(), name: 'page', in: 'query', required: false, description: 'Page number', schema: { type: 'integer', example: 1 } },
+        { id: uuidv4(), name: 'limit', in: 'query', required: false, description: 'Items per page', schema: { type: 'integer', example: 10 } },
+      ],
+      responses: [
+        { id: uuidv4(), statusCode: '200', description: 'Success', schema: [] },
+        { id: uuidv4(), statusCode: '401', description: 'Unauthorized', schema: [] },
+      ],
+    },
+    {
+      id: uuidv4(),
+      path: '/api/v1/users',
+      method: 'POST',
+      summary: 'Create user',
+      operationId: 'createUser',
+      tags: ['Users'],
+      deprecated: false,
+      security: ['bearerAuth'],
+      parameters: [],
+      requestBody: {
+        required: true,
+        contentType: 'application/json',
+        schema: [
+          { id: uuidv4(), name: 'name', type: 'string', required: true, nullable: false, example: 'John Doe' },
+          { id: uuidv4(), name: 'email', type: 'string', required: true, nullable: false, example: 'john@example.com', format: 'email' },
+          { id: uuidv4(), name: 'password', type: 'string', required: true, nullable: false, format: 'password' },
+        ],
+      },
+      responses: [
+        { id: uuidv4(), statusCode: '201', description: 'Created', schema: [] },
+        { id: uuidv4(), statusCode: '400', description: 'Bad Request', schema: [] },
+      ],
+    },
+    {
+      id: uuidv4(),
+      path: '/api/v1/users/{id}',
+      method: 'GET',
+      summary: 'Get user by ID',
+      operationId: 'getUserById',
+      tags: ['Users'],
+      deprecated: false,
+      security: ['bearerAuth'],
+      parameters: [
+        { id: uuidv4(), name: 'id', in: 'path', required: true, description: 'User ID', schema: { type: 'string', format: 'uuid' } },
+      ],
+      responses: [
+        { id: uuidv4(), statusCode: '200', description: 'Success', schema: [] },
+        { id: uuidv4(), statusCode: '404', description: 'Not Found', schema: [] },
+      ],
+    },
+  ],
+  components: {
+    schemas: [
+      {
+        id: uuidv4(),
+        name: 'User',
+        description: 'User entity',
+        properties: [
+          { id: uuidv4(), name: 'id', type: 'string', required: true, nullable: false, format: 'uuid', example: '550e8400-e29b-41d4-a716-446655440000' },
+          { id: uuidv4(), name: 'name', type: 'string', required: true, nullable: false, example: 'John Doe' },
+          { id: uuidv4(), name: 'email', type: 'string', required: true, nullable: false, format: 'email', example: 'john@example.com' },
+          { id: uuidv4(), name: 'createdAt', type: 'string', required: false, nullable: false, format: 'date-time' },
+        ],
+      },
+    ],
+    securitySchemes: [
+      { id: uuidv4(), name: 'bearerAuth', type: 'bearer', description: 'JWT Bearer token', bearerFormat: 'JWT' },
+      { id: uuidv4(), name: 'apiKeyAuth', type: 'apiKey', description: 'API Key', in: 'header', keyName: 'x-api-key' },
+    ],
+  },
+  globalSecurity: ['bearerAuth'],
+  openApiVersion: 'openapi3',
+};
+
+interface HistoryEntry {
+  spec: ApiSpec;
+  timestamp: number;
+}
+
+interface ApiSpecStore {
+  spec: ApiSpec;
+  activeEndpointId: string | null;
+  history: HistoryEntry[];
+  historyIndex: number;
+  searchQuery: string;
+  filterTag: string | null;
+
+  // Spec-level actions
+  setSpec: (spec: ApiSpec) => void;
+  updateInfo: (info: Partial<ApiSpec['info']>) => void;
+  setOpenApiVersion: (v: ApiSpec['openApiVersion']) => void;
+  setGlobalSecurity: (schemes: string[]) => void;
+
+  // Endpoint actions
+  setActiveEndpoint: (id: string | null) => void;
+  addEndpoint: (ep?: Partial<Endpoint>) => void;
+  updateEndpoint: (id: string, changes: Partial<Endpoint>) => void;
+  duplicateEndpoint: (id: string) => void;
+  deleteEndpoint: (id: string) => void;
+  clearEndpoints: () => void;
+  reorderEndpoints: (from: number, to: number) => void;
+
+  // Tag actions
+  addTag: (tag: Partial<ApiTag>) => void;
+  updateTag: (id: string, changes: Partial<ApiTag>) => void;
+  deleteTag: (id: string) => void;
+
+  // Schema component actions
+  addSchema: (s: Partial<SchemaComponent>) => void;
+  updateSchema: (id: string, changes: Partial<SchemaComponent>) => void;
+  deleteSchema: (id: string) => void;
+
+  // Security scheme actions
+  addSecurityScheme: (s: Partial<SecurityScheme>) => void;
+  updateSecurityScheme: (id: string, changes: Partial<SecurityScheme>) => void;
+  deleteSecurityScheme: (id: string) => void;
+
+  // History
+  undo: () => void;
+  redo: () => void;
+  pushHistory: () => void;
+
+  // Search / filter
+  setSearchQuery: (q: string) => void;
+  setFilterTag: (tag: string | null) => void;
+
+  // Import full spec
+  importSpec: (spec: ApiSpec) => void;
+  resetSpec: () => void;
+}
+
+const cloneSpec = (s: ApiSpec): ApiSpec => JSON.parse(JSON.stringify(s));
+
+export const useApiSpecStore = create<ApiSpecStore>()(
+  persist(
+    (set, get) => ({
+      spec: DEFAULT_SPEC,
+      activeEndpointId: DEFAULT_SPEC.endpoints[0]?.id ?? null,
+      history: [],
+      historyIndex: -1,
+      searchQuery: '',
+      filterTag: null,
+
+      pushHistory: () => {
+        const { spec, history, historyIndex } = get();
+        const newHistory = history.slice(0, historyIndex + 1);
+        newHistory.push({ spec: cloneSpec(spec), timestamp: Date.now() });
+        if (newHistory.length > 50) newHistory.shift();
+        set({ history: newHistory, historyIndex: newHistory.length - 1 });
+      },
+
+      setSpec: (spec) => {
+        get().pushHistory();
+        set({ spec });
+      },
+
+      updateInfo: (info) => {
+        get().pushHistory();
+        set((s) => ({ spec: { ...s.spec, info: { ...s.spec.info, ...info } } }));
+      },
+
+      setOpenApiVersion: (v) => set((s) => ({ spec: { ...s.spec, openApiVersion: v } })),
+      setGlobalSecurity: (schemes) => set((s) => ({ spec: { ...s.spec, globalSecurity: schemes } })),
+
+      setActiveEndpoint: (id) => set({ activeEndpointId: id }),
+
+      addEndpoint: (ep = {}) => {
+        get().pushHistory();
+        const state = get();
+        const activeEp = state.spec.endpoints.find((e) => e.id === state.activeEndpointId);
+        const defaultTags = activeEp?.tags.length ? activeEp.tags : (state.filterTag ? [state.filterTag] : []);
+        
+        const newEp: Endpoint = {
+          id: uuidv4(),
+          path: '/api/v1/new-endpoint',
+          method: 'GET',
+          summary: 'New Endpoint',
+          tags: defaultTags,
+          deprecated: false,
+          parameters: [],
+          responses: [{ id: uuidv4(), statusCode: '200', description: 'Success', schema: [] }],
+          ...ep,
+        };
+        set((s) => ({
+          spec: { ...s.spec, endpoints: [...s.spec.endpoints, newEp] },
+          activeEndpointId: newEp.id,
+        }));
+      },
+
+      updateEndpoint: (id, changes) => {
+        set((s) => ({
+          spec: {
+            ...s.spec,
+            endpoints: s.spec.endpoints.map((e) => (e.id === id ? { ...e, ...changes } : e)),
+          },
+        }));
+      },
+
+      duplicateEndpoint: (id) => {
+        get().pushHistory();
+        const ep = get().spec.endpoints.find((e) => e.id === id);
+        if (!ep) return;
+        const newEp = { ...cloneSpec(ep as unknown as ApiSpec) as unknown as Endpoint, id: uuidv4(), operationId: undefined };
+        set((s) => ({
+          spec: { ...s.spec, endpoints: [...s.spec.endpoints, newEp] },
+          activeEndpointId: newEp.id,
+        }));
+      },
+
+      deleteEndpoint: (id) => {
+        get().pushHistory();
+        set((s) => ({
+          spec: { ...s.spec, endpoints: s.spec.endpoints.filter((e) => e.id !== id) },
+          activeEndpointId: s.activeEndpointId === id ? null : s.activeEndpointId,
+        }));
+      },
+
+      clearEndpoints: () => {
+        get().pushHistory();
+        set((s) => ({
+          spec: { ...s.spec, endpoints: [] },
+          activeEndpointId: null,
+        }));
+      },
+
+      reorderEndpoints: (from, to) => {
+        const eps = [...get().spec.endpoints];
+        const [moved] = eps.splice(from, 1);
+        eps.splice(to, 0, moved);
+        set((s) => ({ spec: { ...s.spec, endpoints: eps } }));
+      },
+
+      addTag: (tag = {}) => {
+        const newTag: ApiTag = { id: uuidv4(), name: 'New Tag', ...tag };
+        set((s) => ({ spec: { ...s.spec, tags: [...s.spec.tags, newTag] } }));
+      },
+
+      updateTag: (id, changes) =>
+        set((s) => ({ spec: { ...s.spec, tags: s.spec.tags.map((t) => (t.id === id ? { ...t, ...changes } : t)) } })),
+
+      deleteTag: (id) =>
+        set((s) => ({ spec: { ...s.spec, tags: s.spec.tags.filter((t) => t.id !== id) } })),
+
+      addSchema: (schema = {}) => {
+        const newSchema: SchemaComponent = { id: uuidv4(), name: 'NewSchema', properties: [], ...schema };
+        set((s) => ({ spec: { ...s.spec, components: { ...s.spec.components, schemas: [...s.spec.components.schemas, newSchema] } } }));
+      },
+
+      updateSchema: (id, changes) =>
+        set((s) => ({
+          spec: {
+            ...s.spec,
+            components: {
+              ...s.spec.components,
+              schemas: s.spec.components.schemas.map((sc) => (sc.id === id ? { ...sc, ...changes } : sc)),
+            },
+          },
+        })),
+
+      deleteSchema: (id) =>
+        set((s) => ({
+          spec: {
+            ...s.spec,
+            components: {
+              ...s.spec.components,
+              schemas: s.spec.components.schemas.filter((sc) => sc.id !== id),
+            },
+          },
+        })),
+
+      addSecurityScheme: (scheme = {}) => {
+        const s: SecurityScheme = { id: uuidv4(), name: 'newAuth', type: 'bearer', ...scheme };
+        set((st) => ({
+          spec: {
+            ...st.spec,
+            components: { ...st.spec.components, securitySchemes: [...st.spec.components.securitySchemes, s] },
+          },
+        }));
+      },
+
+      updateSecurityScheme: (id, changes) =>
+        set((st) => ({
+          spec: {
+            ...st.spec,
+            components: {
+              ...st.spec.components,
+              securitySchemes: st.spec.components.securitySchemes.map((ss) => (ss.id === id ? { ...ss, ...changes } : ss)),
+            },
+          },
+        })),
+
+      deleteSecurityScheme: (id) =>
+        set((st) => ({
+          spec: {
+            ...st.spec,
+            components: {
+              ...st.spec.components,
+              securitySchemes: st.spec.components.securitySchemes.filter((ss) => ss.id !== id),
+            },
+          },
+        })),
+
+      undo: () => {
+        const { history, historyIndex } = get();
+        if (historyIndex <= 0) return;
+        const newIndex = historyIndex - 1;
+        set({ spec: cloneSpec(history[newIndex].spec), historyIndex: newIndex });
+      },
+
+      redo: () => {
+        const { history, historyIndex } = get();
+        if (historyIndex >= history.length - 1) return;
+        const newIndex = historyIndex + 1;
+        set({ spec: cloneSpec(history[newIndex].spec), historyIndex: newIndex });
+      },
+
+      setSearchQuery: (q) => set({ searchQuery: q }),
+      setFilterTag: (tag) => set({ filterTag: tag }),
+
+      importSpec: (spec) => {
+        get().pushHistory();
+        set({ spec, activeEndpointId: spec.endpoints[0]?.id ?? null });
+      },
+
+      resetSpec: () => {
+        get().pushHistory();
+        set({ spec: { ...DEFAULT_SPEC, id: uuidv4() }, activeEndpointId: DEFAULT_SPEC.endpoints[0]?.id ?? null });
+      },
+    }),
+    { name: 'api-spec-store', version: 1 }
+  )
+);

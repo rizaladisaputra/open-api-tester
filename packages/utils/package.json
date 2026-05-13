@@ -1,0 +1,8 @@
+{
+  "name": "@modern-api-studio/utils",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@modern-api-studio/types": "*"
+  }
+}
