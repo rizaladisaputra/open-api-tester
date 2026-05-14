@@ -5,11 +5,15 @@ import { EndpointDetail } from './EndpointDetail';
 import { apiSpecToOpenApi3, yaml } from '@modern-api-studio/utils';
 import MonacoEditor from '@monaco-editor/react';
 import toast from 'react-hot-toast';
+import { useState } from 'react';
+import SwaggerUI from 'swagger-ui-react';
+import 'swagger-ui-react/swagger-ui.css';
 
 export function DesignerPanel() {
   const { spec, activeEndpointId } = useApiSpecStore();
   const { editorMode, setEditorMode } = useUiStore();
   const activeEndpoint = spec.endpoints.find((e) => e.id === activeEndpointId);
+  const [liveView, setLiveView] = useState<'code' | 'swagger'>('code');
 
   const yamlOutput = apiSpecToOpenApi3(spec, 'yaml');
   const jsonOutput = apiSpecToOpenApi3(spec, 'json');
@@ -68,31 +72,45 @@ export function DesignerPanel() {
         </div>
       </div>
 
-      {/* Right: Live YAML output */}
+      {/* Right: Live Output */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>Live OpenAPI 3.0 Output</span>
+          <div className="tabs" style={{ marginBottom: 0 }}>
+            <button className={`tab ${liveView === 'code' ? 'active' : ''}`} onClick={() => setLiveView('code')}>Code Output</button>
+            <button className={`tab ${liveView === 'swagger' ? 'active' : ''}`} onClick={() => setLiveView('swagger')}>Swagger Preview</button>
+          </div>
           <div style={{ display: 'flex', gap: 6 }}>
-            <CopyButton text={yamlOutput} label="YAML" />
-            <CopyButton text={jsonOutput} label="JSON" />
+            {liveView === 'code' && (
+              <>
+                <CopyButton text={yamlOutput} label="YAML" />
+                <CopyButton text={jsonOutput} label="JSON" />
+              </>
+            )}
           </div>
         </div>
-        <MonacoEditor
-          height="100%"
-          language="yaml"
-          value={yamlOutput}
-          theme="vs-dark"
-          options={{
-            readOnly: true,
-            minimap: { enabled: false },
-            fontSize: 12,
-            fontFamily: 'JetBrains Mono, monospace',
-            lineNumbers: 'on',
-            scrollBeyondLastLine: false,
-            automaticLayout: true,
-            wordWrap: 'on',
-          }}
-        />
+        
+        {liveView === 'code' ? (
+          <MonacoEditor
+            height="100%"
+            language="yaml"
+            value={yamlOutput}
+            theme="vs-dark"
+            options={{
+              readOnly: true,
+              minimap: { enabled: false },
+              fontSize: 12,
+              fontFamily: 'JetBrains Mono, monospace',
+              lineNumbers: 'on',
+              scrollBeyondLastLine: false,
+              automaticLayout: true,
+              wordWrap: 'on',
+            }}
+          />
+        ) : (
+          <div className="scroll-y" style={{ height: '100%', background: '#fff' }}>
+            <SwaggerUI spec={JSON.parse(jsonOutput)} />
+          </div>
+        )}
       </div>
     </div>
   );

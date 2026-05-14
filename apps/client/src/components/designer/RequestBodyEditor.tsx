@@ -3,6 +3,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { jsonToSchema } from '@modern-api-studio/utils';
+import { useApiSpecStore } from '../../store/useApiSpecStore';
+import { SchemaBuilder } from '../shared/SchemaBuilder';
 
 interface Props { endpoint: Endpoint; update: (c: Partial<Endpoint>) => void; }
 
@@ -10,25 +12,13 @@ const SCHEMA_TYPES: SchemaType[] = ['string', 'number', 'integer', 'boolean', 'o
 const CONTENT_TYPES: ContentType[] = ['application/json', 'multipart/form-data', 'application/x-www-form-urlencoded'];
 
 export function RequestBodyEditor({ endpoint, update }: Props) {
+  const spec = useApiSpecStore(s => s.spec);
   const hasBody = ['POST', 'PUT', 'PATCH'].includes(endpoint.method);
   const body = endpoint.requestBody;
   const mode = body?.mode || 'visual';
 
   const setBody = (b: Partial<RequestBodyDefinition>) => {
     update({ requestBody: { required: true, contentType: 'application/json', schema: [], ...body, ...b } });
-  };
-
-  const addField = () => {
-    const newProp: SchemaProperty = { id: uuidv4(), name: '', type: 'string', required: false, nullable: false };
-    setBody({ schema: [...(body?.schema || []), newProp] });
-  };
-
-  const updateField = (id: string, changes: Partial<SchemaProperty>) => {
-    setBody({ schema: (body?.schema || []).map((f) => f.id === id ? { ...f, ...changes } : f) });
-  };
-
-  const removeField = (id: string) => {
-    setBody({ schema: (body?.schema || []).filter((f) => f.id !== id) });
   };
 
   // legacy handleImportJson removed
@@ -68,10 +58,19 @@ export function RequestBodyEditor({ endpoint, update }: Props) {
           <div style={{ display: 'flex', gap: 4, background: 'var(--bg-overlay)', padding: 4, borderRadius: 6 }}>
             <button className={`btn btn-sm ${mode === 'visual' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setBody({ mode: 'visual' })}>Visual Builder</button>
             <button className={`btn btn-sm ${mode === 'raw' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setBody({ mode: 'raw' })}>Raw JSON</button>
+            <button className={`btn btn-sm ${mode === 'ref' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setBody({ mode: 'ref' })}>Use Schema</button>
           </div>
         </div>
 
-        {mode === 'raw' ? (
+        {mode === 'ref' ? (
+          <div style={{ padding: 20, textAlign: 'center' }}>
+            <div style={{ fontSize: 13, marginBottom: 12, color: 'var(--text-secondary)' }}>Select a reusable schema from Components:</div>
+            <select className="input" style={{ maxWidth: 300, margin: '0 auto', display: 'block' }} value={body?.ref || ''} onChange={e => setBody({ ref: e.target.value })}>
+              <option value="">-- Select Schema --</option>
+              {spec.components.schemas.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+            </select>
+          </div>
+        ) : mode === 'raw' ? (
           <div style={{ marginTop: 10 }}>
             <textarea className="input input-mono" style={{ minHeight: 150, fontSize: 12, marginBottom: 8 }} 
               value={body?.rawJson || ''} 
@@ -82,51 +81,11 @@ export function RequestBodyEditor({ endpoint, update }: Props) {
             </div>
           </div>
         ) : (
-          <>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
-              <button className="btn btn-ghost btn-sm" onClick={addField}>+ Add Field</button>
-            </div>
-            {(body?.schema || []).length === 0 ? (
-              <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 12, padding: 16 }}>No fields. Click "+ Add Field" to begin.</div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {/* Header row */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px 80px 60px 60px 32px', gap: 6, padding: '0 4px', color: 'var(--text-muted)', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  <span>Name</span><span>Type</span><span>Format</span><span>Required</span><span>Nullable</span><span></span>
-                </div>
-                {(body?.schema || []).map((f) => (
-                  <FieldRow key={f.id} field={f} onUpdate={(c) => updateField(f.id, c)} onRemove={() => removeField(f.id)} />
-                ))}
-              </div>
-            )}
-          </>
+          <div style={{ marginTop: 10 }}>
+            <SchemaBuilder properties={body?.schema || []} onChange={p => setBody({ schema: p })} />
+          </div>
         )}
       </div>
-    </div>
-  );
-}
-
-function FieldRow({ field, onUpdate, onRemove }: { field: SchemaProperty; onUpdate: (c: Partial<SchemaProperty>) => void; onRemove: () => void }) {
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px 80px 60px 60px 32px', gap: 6, alignItems: 'center', padding: '6px 4px', borderRadius: 6, background: 'var(--bg-overlay)' }}>
-      <input className="input input-mono" style={{ fontSize: 11 }} value={field.name} onChange={(e) => onUpdate({ name: e.target.value })} placeholder="field_name" />
-      <select className="input" style={{ fontSize: 11 }} value={field.type} onChange={(e) => onUpdate({ type: e.target.value as SchemaType })}>
-        {['string', 'number', 'integer', 'boolean', 'object', 'array'].map((t) => <option key={t} value={t}>{t}</option>)}
-      </select>
-      <input className="input" style={{ fontSize: 11 }} value={field.format || ''} onChange={(e) => onUpdate({ format: e.target.value })} placeholder="uuid..." />
-      <div style={{ display: 'flex', justifyContent: 'center' }}>
-        <label className="toggle" style={{ transform: 'scale(0.8)' }}>
-          <input type="checkbox" checked={field.required} onChange={(e) => onUpdate({ required: e.target.checked })} />
-          <span className="toggle-slider" />
-        </label>
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'center' }}>
-        <label className="toggle" style={{ transform: 'scale(0.8)' }}>
-          <input type="checkbox" checked={field.nullable} onChange={(e) => onUpdate({ nullable: e.target.checked })} />
-          <span className="toggle-slider" />
-        </label>
-      </div>
-      <button className="btn btn-ghost btn-icon btn-sm" onClick={onRemove} style={{ color: 'var(--accent-red)', padding: 4 }}>✕</button>
     </div>
   );
 }

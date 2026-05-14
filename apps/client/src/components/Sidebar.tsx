@@ -9,7 +9,7 @@ const METHOD_COLORS: Record<HttpMethod, string> = {
 
 export function Sidebar() {
   const { spec, activeEndpointId, setActiveEndpoint, addEndpoint, deleteEndpoint, searchQuery, setSearchQuery, filterTag, setFilterTag } = useApiSpecStore();
-  const { sidebarCollapsed, toggleSidebar } = useUiStore();
+  const { sidebarCollapsed, toggleSidebar, setActivePanel } = useUiStore();
   const [expandedTags, setExpandedTags] = useState<Set<string>>(new Set(['Users', 'Products', 'Authentication']));
 
   const filtered = spec.endpoints.filter((ep) => {
@@ -85,12 +85,12 @@ export function Sidebar() {
 
             {/* Endpoints */}
             {expandedTags.has(tag) && eps.map((ep) => (
-              <div key={ep.id} onClick={() => setActiveEndpoint(ep.id)}
+              <div key={ep.id} onClick={() => { setActiveEndpoint(ep.id); setActivePanel('designer'); }}
                 className={`sidebar-item ${activeEndpointId === ep.id ? 'active' : ''}`}
                 style={{ paddingLeft: 20, gap: 8, display: 'flex', alignItems: 'center' }}>
                 <span className={`method-badge badge-${ep.method.toLowerCase()}`}>{ep.method}</span>
-                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}>
-                  {ep.path}
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: ep.summary ? 'inherit' : 'JetBrains Mono, monospace', fontSize: 12, fontWeight: ep.summary ? 600 : 400 }}>
+                  {ep.summary || ep.path}
                 </span>
                 {ep.security && ep.security.length > 0 && <span className="auth-badge">🔒</span>}
                 {ep.deprecated && <span style={{ color: 'var(--accent-yellow)', fontSize: 10 }}>⚠</span>}

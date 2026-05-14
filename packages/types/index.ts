@@ -75,8 +75,9 @@ export interface RequestBodyDefinition {
   required: boolean;
   description?: string;
   contentType: ContentType;
-  mode?: 'visual' | 'raw';
+  mode?: 'visual' | 'raw' | 'ref';
   rawJson?: string;
+  ref?: string;
   schema: SchemaProperty[];
 }
 
@@ -89,8 +90,9 @@ export interface ResponseDefinition {
   statusCode: string;
   description: string;
   contentType?: string;
-  mode?: 'visual' | 'raw';
+  mode?: 'visual' | 'raw' | 'ref';
   rawJson?: string;
+  ref?: string;
   schema?: SchemaProperty[];
   example?: unknown;
   headers?: Record<string, EndpointParameter>;

@@ -3,6 +3,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { jsonToSchema } from '@modern-api-studio/utils';
+import { useApiSpecStore } from '../../store/useApiSpecStore';
+import { SchemaBuilder } from '../shared/SchemaBuilder';
 
 interface Props { endpoint: Endpoint; update: (c: Partial<Endpoint>) => void; }
 
@@ -20,6 +22,7 @@ function statusColor(code: string) {
 }
 
 export function ResponseEditor({ endpoint, update }: Props) {
+  const spec = useApiSpecStore(s => s.spec);
 
   const addResponse = (code?: string) => {
     const existing = endpoint.responses.map((r) => r.statusCode);
@@ -36,25 +39,6 @@ export function ResponseEditor({ endpoint, update }: Props) {
   const removeResponse = (id: string) => {
     update({ responses: endpoint.responses.filter((r) => r.id !== id) });
   };
-
-  const addField = (respId: string) => {
-    const field: SchemaProperty = { id: uuidv4(), name: '', type: 'string', required: false, nullable: false };
-    updateResponse(respId, { schema: [...(endpoint.responses.find((r) => r.id === respId)?.schema || []), field] });
-  };
-
-  const updateField = (respId: string, fieldId: string, changes: Partial<SchemaProperty>) => {
-    const resp = endpoint.responses.find((r) => r.id === respId);
-    if (!resp) return;
-    updateResponse(respId, { schema: (resp.schema || []).map((f) => f.id === fieldId ? { ...f, ...changes } : f) });
-  };
-
-  const removeField = (respId: string, fieldId: string) => {
-    const resp = endpoint.responses.find((r) => r.id === respId);
-    if (!resp) return;
-    updateResponse(respId, { schema: (resp.schema || []).filter((f) => f.id !== fieldId) });
-  };
-
-  // legacy handleImportJson removed
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -97,12 +81,21 @@ export function ResponseEditor({ endpoint, update }: Props) {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
               <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>Schema Definition</span>
               <div style={{ display: 'flex', gap: 4, background: 'var(--bg-overlay)', padding: 4, borderRadius: 6 }}>
-                <button className={`btn btn-sm ${resp.mode !== 'raw' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => updateResponse(resp.id, { mode: 'visual' })}>Builder</button>
+                <button className={`btn btn-sm ${resp.mode !== 'raw' && resp.mode !== 'ref' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => updateResponse(resp.id, { mode: 'visual' })}>Builder</button>
                 <button className={`btn btn-sm ${resp.mode === 'raw' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => updateResponse(resp.id, { mode: 'raw' })}>Raw JSON</button>
+                <button className={`btn btn-sm ${resp.mode === 'ref' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => updateResponse(resp.id, { mode: 'ref' })}>Use Schema</button>
               </div>
             </div>
             
-            {resp.mode === 'raw' ? (
+            {resp.mode === 'ref' ? (
+              <div style={{ padding: 12, textAlign: 'center', background: 'var(--bg-overlay)', borderRadius: 6 }}>
+                <div style={{ fontSize: 11, marginBottom: 8, color: 'var(--text-secondary)' }}>Select reusable schema from Components:</div>
+                <select className="input" style={{ width: '100%', maxWidth: 200, margin: '0 auto', display: 'block', fontSize: 11 }} value={resp.ref || ''} onChange={e => updateResponse(resp.id, { ref: e.target.value })}>
+                  <option value="">-- Select Schema --</option>
+                  {spec.components.schemas.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                </select>
+              </div>
+            ) : resp.mode === 'raw' ? (
               <div style={{ marginTop: 8 }}>
                 <textarea className="input input-mono" style={{ minHeight: 120, fontSize: 11, marginBottom: 4 }} 
                   value={resp.rawJson || ''} 
@@ -111,27 +104,9 @@ export function ResponseEditor({ endpoint, update }: Props) {
                 <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>This JSON will be automatically parsed to generate the schema.</div>
               </div>
             ) : (
-              <>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
-                  <button className="btn btn-ghost btn-sm" style={{ fontSize: 11 }} onClick={() => addField(resp.id)}>+ Field</button>
-                </div>
-                {(resp.schema || []).length === 0 ? (
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>No schema defined (returns empty body)</div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {(resp.schema || []).map((f) => (
-                      <div key={f.id} style={{ display: 'grid', gridTemplateColumns: '1fr 90px 80px 32px', gap: 6, alignItems: 'center', padding: '5px 4px', borderRadius: 4, background: 'var(--bg-overlay)' }}>
-                        <input className="input input-mono" style={{ fontSize: 11 }} value={f.name} onChange={(e) => updateField(resp.id, f.id, { name: e.target.value })} placeholder="field_name" />
-                        <select className="input" style={{ fontSize: 11 }} value={f.type} onChange={(e) => updateField(resp.id, f.id, { type: e.target.value as SchemaType })}>
-                          {['string','number','integer','boolean','object','array'].map((t) => <option key={t} value={t}>{t}</option>)}
-                        </select>
-                        <input className="input" style={{ fontSize: 11 }} value={f.format || ''} onChange={(e) => updateField(resp.id, f.id, { format: e.target.value })} placeholder="format" />
-                        <button className="btn btn-ghost btn-icon btn-sm" onClick={() => removeField(resp.id, f.id)} style={{ color: 'var(--accent-red)', padding: 4 }}>✕</button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
+              <div style={{ marginTop: 10 }}>
+                <SchemaBuilder properties={resp.schema || []} onChange={p => updateResponse(resp.id, { schema: p })} />
+              </div>
             )}
           </div>
         </div>

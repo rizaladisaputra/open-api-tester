@@ -2,6 +2,7 @@ import type {
   ApiSpec,
   ConvertJsonToSwaggerRequest,
   SchemaType,
+  SchemaProperty,
   EndpointParameter,
   HttpMethod,
 } from '@modern-api-studio/types';
@@ -71,6 +72,44 @@ export function jsonToSchema(
   const base: Record<string, unknown> = { type, example: obj };
   if (format) base.format = format;
   return base;
+}
+
+export function jsonToProperties(obj: unknown): SchemaProperty[] {
+  if (typeof obj !== 'object' || obj === null || Array.isArray(obj)) return [];
+
+  const newProps: SchemaProperty[] = [];
+  for (const [key, value] of Object.entries(obj)) {
+    const type = inferType(value) as SchemaType;
+    const format = inferFormat(value);
+    
+    const prop: SchemaProperty = {
+      id: uuidv4(),
+      name: key,
+      type: type,
+      required: value !== null && value !== undefined,
+      nullable: value === null,
+    };
+    if (format) prop.format = format;
+    
+    if (type === 'object' && value !== null) {
+      prop.properties = jsonToProperties(value);
+    } else if (type === 'array' && Array.isArray(value) && value.length > 0) {
+      const itemType = inferType(value[0]) as SchemaType;
+      prop.items = {
+        id: uuidv4(),
+        name: 'items',
+        type: itemType,
+        required: true,
+        nullable: value[0] === null
+      };
+      if (itemType === 'object') {
+        prop.items.properties = jsonToProperties(value[0]);
+      }
+    }
+    
+    newProps.push(prop);
+  }
+  return newProps;
 }
 
 // ============================================================
@@ -390,7 +429,9 @@ export function apiSpecToOpenApi3(spec: ApiSpec, format: 'json' | 'yaml' = 'yaml
     const responses: Record<string, unknown> = {};
     for (const r of ep.responses) {
       const responseObj: Record<string, unknown> = { description: r.description };
-      if (r.mode === 'raw' && r.rawJson) {
+      if (r.mode === 'ref' && r.ref) {
+        responseObj.content = { [r.contentType || 'application/json']: { schema: { $ref: `#/components/schemas/${r.ref}` } } };
+      } else if (r.mode === 'raw' && r.rawJson) {
         try {
           responseObj.content = { [r.contentType || 'application/json']: { schema: jsonToSchema(JSON.parse(r.rawJson)) } };
         } catch {
@@ -421,7 +462,9 @@ export function apiSpecToOpenApi3(spec: ApiSpec, format: 'json' | 'yaml' = 'yaml
 
     if (ep.requestBody && ['POST', 'PUT', 'PATCH'].includes(ep.method)) {
       let bodySchema;
-      if (ep.requestBody.mode === 'raw' && ep.requestBody.rawJson) {
+      if (ep.requestBody.mode === 'ref' && ep.requestBody.ref) {
+        bodySchema = { $ref: `#/components/schemas/${ep.requestBody.ref}` };
+      } else if (ep.requestBody.mode === 'raw' && ep.requestBody.rawJson) {
         try {
           bodySchema = jsonToSchema(JSON.parse(ep.requestBody.rawJson));
         } catch {
@@ -493,7 +536,9 @@ function buildSchemaFromProperties(props: import('@modern-api-studio/types').Sch
         type: 'array',
         items: p.items.ref
           ? { $ref: `#/components/schemas/${p.items.ref}` }
-          : { type: p.items.type },
+          : p.items.type === 'object' && p.items.properties
+              ? buildSchemaFromProperties(p.items.properties)
+              : { type: p.items.type },
       };
     } else {
       const s: Record<string, unknown> = { type: p.type };

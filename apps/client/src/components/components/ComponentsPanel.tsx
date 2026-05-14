@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { useApiSpecStore } from '../../store/useApiSpecStore';
-import type { SchemaComponent, SchemaProperty, SchemaType } from '@modern-api-studio/types';
+import type { SchemaComponent, SchemaProperty } from '@modern-api-studio/types';
 import { v4 as uuidv4 } from 'uuid';
 import toast from 'react-hot-toast';
+import { jsonToProperties } from '@modern-api-studio/utils';
+import { SchemaBuilder } from '../shared/SchemaBuilder';
 
 export function ComponentsPanel() {
   const { spec, addSchema, updateSchema, deleteSchema } = useApiSpecStore();
@@ -53,17 +55,33 @@ export function ComponentsPanel() {
 }
 
 function SchemaEditor({ schema, onUpdate, onDelete }: { schema: SchemaComponent; onUpdate: (c: Partial<SchemaComponent>) => void; onDelete: () => void }) {
-  const addProp = () => {
-    const p: SchemaProperty = { id: uuidv4(), name: '', type: 'string', required: false, nullable: false };
-    onUpdate({ properties: [...schema.properties, p] });
-  };
+  const spec = useApiSpecStore((s) => s.spec);
+  const usedInEndpoints = spec.endpoints.filter((ep) => {
+    if (ep.requestBody?.mode === 'ref' && ep.requestBody.ref === schema.name) return true;
+    if (ep.responses.some((r) => r.mode === 'ref' && r.ref === schema.name)) return true;
+    return false;
+  });
 
-  const updateProp = (id: string, changes: Partial<SchemaProperty>) => {
-    onUpdate({ properties: schema.properties.map((p) => p.id === id ? { ...p, ...changes } : p) });
-  };
+  const [showJsonInput, setShowJsonInput] = useState(false);
+  const [rawJson, setRawJson] = useState('');
 
-  const removeProp = (id: string) => {
-    onUpdate({ properties: schema.properties.filter((p) => p.id !== id) });
+  const handleGenerateFromJson = () => {
+    if (!rawJson.trim()) return;
+    try {
+      const parsed = JSON.parse(rawJson);
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+        toast.error('Root JSON must be an object');
+        return;
+      }
+      
+      const newProps = jsonToProperties(parsed);
+      onUpdate({ properties: [...schema.properties, ...newProps] });
+      setShowJsonInput(false);
+      setRawJson('');
+      toast.success('Added properties from JSON');
+    } catch (e) {
+      toast.error('Invalid JSON format');
+    }
   };
 
   return (
@@ -87,50 +105,44 @@ function SchemaEditor({ schema, onUpdate, onDelete }: { schema: SchemaComponent;
         <div style={{ marginTop: 8, padding: '6px 10px', background: 'var(--bg-overlay)', borderRadius: 6, fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: 'var(--accent-blue)' }}>
           $ref: #/components/schemas/{schema.name}
         </div>
+        
+        {usedInEndpoints.length > 0 && (
+          <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>Used in Endpoints:</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {usedInEndpoints.map(ep => (
+                <div key={ep.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
+                  <span className={`method-badge badge-${ep.method.toLowerCase()}`} style={{ transform: 'scale(0.8)', transformOrigin: 'left center' }}>{ep.method}</span>
+                  <span style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-primary)' }}>{ep.path}</span>
+                  {ep.summary && <span style={{ color: 'var(--text-muted)' }}>({ep.summary})</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Properties */}
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>Properties ({schema.properties.length})</div>
-          <button className="btn btn-ghost btn-sm" onClick={addProp}>+ Add Property</button>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>Properties</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className={`btn btn-sm ${showJsonInput ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setShowJsonInput(!showJsonInput)}>Generate from JSON</button>
+          </div>
         </div>
 
-        {schema.properties.length === 0 ? (
-          <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 12, padding: 20 }}>No properties. Click "+ Add Property" to begin.</div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {schema.properties.map((p) => (
-              <div key={p.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '10px 10px', background: 'var(--bg-overlay)', borderRadius: 8 }}>
-                <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 90px 90px', gap: 6 }}>
-                  <div className="form-group">
-                    <label className="label">Name</label>
-                    <input className="input input-mono" style={{ fontSize: 12 }} value={p.name} onChange={(e) => updateProp(p.id, { name: e.target.value })} placeholder="propertyName" />
-                  </div>
-                  <div className="form-group">
-                    <label className="label">Type</label>
-                    <select className="input" style={{ fontSize: 12 }} value={p.type} onChange={(e) => updateProp(p.id, { type: e.target.value as SchemaType })}>
-                      {['string','number','integer','boolean','object','array'].map((t) => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label className="label">Format</label>
-                    <input className="input" style={{ fontSize: 12 }} value={p.format || ''} onChange={(e) => updateProp(p.id, { format: e.target.value })} placeholder="uuid, date..." />
-                  </div>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', paddingTop: 20 }}>
-                  <label style={{ display: 'flex', gap: 4, cursor: 'pointer', fontSize: 11, color: 'var(--text-muted)', alignItems: 'center' }}>
-                    <input type="checkbox" checked={p.required} onChange={(e) => updateProp(p.id, { required: e.target.checked })} />req
-                  </label>
-                  <label style={{ display: 'flex', gap: 4, cursor: 'pointer', fontSize: 11, color: 'var(--text-muted)', alignItems: 'center' }}>
-                    <input type="checkbox" checked={p.nullable} onChange={(e) => updateProp(p.id, { nullable: e.target.checked })} />null
-                  </label>
-                </div>
-                <button className="btn btn-ghost btn-icon btn-sm" onClick={() => removeProp(p.id)} style={{ color: 'var(--accent-red)', paddingTop: 22 }}>✕</button>
-              </div>
-            ))}
+        {showJsonInput && (
+          <div style={{ marginBottom: 16, padding: 12, background: 'var(--bg-overlay)', borderRadius: 8 }}>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>Paste a JSON object below. Its nested structure and types will be automatically extracted.</div>
+            <textarea className="input input-mono" style={{ minHeight: 120, fontSize: 12, marginBottom: 8 }} value={rawJson} onChange={e => setRawJson(e.target.value)} placeholder='{\n  "data": {\n    "id": 123\n  }\n}' />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowJsonInput(false)}>Cancel</button>
+              <button className="btn btn-primary btn-sm" onClick={handleGenerateFromJson}>Extract Parameters</button>
+            </div>
           </div>
         )}
+
+        <SchemaBuilder properties={schema.properties} onChange={p => onUpdate({ properties: p })} />
       </div>
     </div>
   );

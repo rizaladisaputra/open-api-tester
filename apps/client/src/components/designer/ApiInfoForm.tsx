@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { useApiSpecStore } from '../../store/useApiSpecStore';
 import toast from 'react-hot-toast';
 
 export function ApiInfoForm() {
   const { spec, updateInfo, setGlobalSecurity, setOpenApiVersion } = useApiSpecStore();
+  const [activeTab, setActiveTab] = useState<'info' | 'servers' | 'security'>('info');
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, animation: 'fadeIn 0.2s ease' }}>
@@ -17,8 +19,14 @@ export function ApiInfoForm() {
         </div>
       </div>
 
-      {/* API Info */}
-      <div className="card">
+      <div className="tabs" style={{ marginBottom: 0 }}>
+        <button className={`tab ${activeTab === 'info' ? 'active' : ''}`} onClick={() => setActiveTab('info')}>API Information</button>
+        <button className={`tab ${activeTab === 'servers' ? 'active' : ''}`} onClick={() => setActiveTab('servers')}>Environment Servers</button>
+        <button className={`tab ${activeTab === 'security' ? 'active' : ''}`} onClick={() => setActiveTab('security')}>Global Security</button>
+      </div>
+
+      {activeTab === 'info' && (
+        <div className="card">
         <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ color: 'var(--accent-blue)' }}>ℹ</span> API Information
         </div>
@@ -48,11 +56,12 @@ export function ApiInfoForm() {
             <label className="label">Contact Email</label>
             <input className="input" value={spec.info.contact?.email || ''} onChange={(e) => updateInfo({ contact: { ...spec.info.contact, email: e.target.value } })} placeholder="api@example.com" />
           </div>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Servers */}
-      <div className="card">
+      {activeTab === 'servers' && (
+        <div className="card">
         <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ color: 'var(--accent-teal)' }}>⛁</span> Environment Servers
         </div>
@@ -96,9 +105,10 @@ export function ApiInfoForm() {
           useApiSpecStore.getState().setSpec({ ...spec, servers });
         }}>+ Add Server</button>
       </div>
+      )}
 
-      {/* Global Security */}
-      <div className="card">
+      {activeTab === 'security' && (
+        <div className="card">
         <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ color: 'var(--accent-yellow)' }}>🔒</span> Global Security
         </div>
@@ -121,6 +131,7 @@ export function ApiInfoForm() {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }
