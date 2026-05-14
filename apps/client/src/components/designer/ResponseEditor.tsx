@@ -2,9 +2,9 @@ import type { Endpoint, ResponseDefinition, SchemaProperty, SchemaType } from '@
 import { v4 as uuidv4 } from 'uuid';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-import { jsonToSchema } from '@modern-api-studio/utils';
 import { useApiSpecStore } from '../../store/useApiSpecStore';
 import { SchemaBuilder } from '../shared/SchemaBuilder';
+import { JsonEditor } from '../shared/JsonEditor';
 
 interface Props { endpoint: Endpoint; update: (c: Partial<Endpoint>) => void; }
 
@@ -97,11 +97,13 @@ export function ResponseEditor({ endpoint, update }: Props) {
               </div>
             ) : resp.mode === 'raw' ? (
               <div style={{ marginTop: 8 }}>
-                <textarea className="input input-mono" style={{ minHeight: 120, fontSize: 11, marginBottom: 4 }} 
+                <JsonEditor 
                   value={resp.rawJson || ''} 
-                  onChange={(e) => updateResponse(resp.id, { rawJson: e.target.value })} 
-                  placeholder='{\n  "id": 1,\n  "status": "success"\n}' />
-                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>This JSON will be automatically parsed to generate the schema.</div>
+                  onChange={(v) => updateResponse(resp.id, { rawJson: v })} 
+                  placeholder='{\n  "id": 1,\n  "status": "success"\n}' 
+                  minHeight={120} 
+                />
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8 }}>This JSON will be automatically parsed to generate the schema.</div>
               </div>
             ) : (
               <div style={{ marginTop: 10 }}>

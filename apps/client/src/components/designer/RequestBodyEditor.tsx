@@ -2,9 +2,9 @@ import type { Endpoint, SchemaProperty, SchemaType, ContentType, RequestBodyDefi
 import { v4 as uuidv4 } from 'uuid';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-import { jsonToSchema } from '@modern-api-studio/utils';
 import { useApiSpecStore } from '../../store/useApiSpecStore';
 import { SchemaBuilder } from '../shared/SchemaBuilder';
+import { JsonEditor } from '../shared/JsonEditor';
 
 interface Props { endpoint: Endpoint; update: (c: Partial<Endpoint>) => void; }
 
@@ -72,11 +72,13 @@ export function RequestBodyEditor({ endpoint, update }: Props) {
           </div>
         ) : mode === 'raw' ? (
           <div style={{ marginTop: 10 }}>
-            <textarea className="input input-mono" style={{ minHeight: 150, fontSize: 12, marginBottom: 8 }} 
+            <JsonEditor 
               value={body?.rawJson || ''} 
-              onChange={(e) => setBody({ rawJson: e.target.value })} 
-              placeholder='{\n  "id": 1,\n  "name": "Item"\n}' />
-            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+              onChange={(v) => setBody({ rawJson: v })} 
+              placeholder='{\n  "id": 1,\n  "name": "Item"\n}' 
+              minHeight={150} 
+            />
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
               This JSON structure will be automatically parsed to generate the OpenAPI schema.
             </div>
           </div>

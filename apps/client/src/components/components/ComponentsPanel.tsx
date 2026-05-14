@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import toast from 'react-hot-toast';
 import { jsonToProperties } from '@modern-api-studio/utils';
 import { SchemaBuilder } from '../shared/SchemaBuilder';
+import { JsonEditor } from '../shared/JsonEditor';
 
 export function ComponentsPanel() {
   const { spec, addSchema, updateSchema, deleteSchema } = useApiSpecStore();
@@ -134,8 +135,13 @@ function SchemaEditor({ schema, onUpdate, onDelete }: { schema: SchemaComponent;
         {showJsonInput && (
           <div style={{ marginBottom: 16, padding: 12, background: 'var(--bg-overlay)', borderRadius: 8 }}>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>Paste a JSON object below. Its nested structure and types will be automatically extracted.</div>
-            <textarea className="input input-mono" style={{ minHeight: 120, fontSize: 12, marginBottom: 8 }} value={rawJson} onChange={e => setRawJson(e.target.value)} placeholder='{\n  "data": {\n    "id": 123\n  }\n}' />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <JsonEditor 
+              value={rawJson} 
+              onChange={setRawJson} 
+              placeholder='{\n  "data": {\n    "id": 123\n  }\n}' 
+              minHeight={120} 
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
               <button className="btn btn-ghost btn-sm" onClick={() => setShowJsonInput(false)}>Cancel</button>
               <button className="btn btn-primary btn-sm" onClick={handleGenerateFromJson}>Extract Parameters</button>
             </div>
