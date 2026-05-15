@@ -62,6 +62,13 @@ export interface EndpointParameter {
   };
 }
 
+export interface EndpointExample {
+  id: string;
+  name: string;
+  summary?: string;
+  value: string;
+}
+
 // ============================================================
 // Request Body
 // ============================================================
@@ -79,6 +86,7 @@ export interface RequestBodyDefinition {
   rawJson?: string;
   ref?: string;
   schema: SchemaProperty[];
+  examples?: EndpointExample[];
 }
 
 // ============================================================
@@ -95,6 +103,7 @@ export interface ResponseDefinition {
   ref?: string;
   schema?: SchemaProperty[];
   example?: unknown;
+  examples?: EndpointExample[];
   headers?: Record<string, EndpointParameter>;
 }
 

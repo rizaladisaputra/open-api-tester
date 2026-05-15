@@ -2,9 +2,11 @@ import type { Endpoint, SchemaProperty, SchemaType, ContentType, RequestBodyDefi
 import { v4 as uuidv4 } from 'uuid';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
+import { buildSchemaFromProperties, generateMockFromSchema } from '@modern-api-studio/utils';
 import { useApiSpecStore } from '../../store/useApiSpecStore';
 import { SchemaBuilder } from '../shared/SchemaBuilder';
 import { JsonEditor } from '../shared/JsonEditor';
+import { ExampleEditor } from '../shared/ExampleEditor';
 
 interface Props { endpoint: Endpoint; update: (c: Partial<Endpoint>) => void; }
 
@@ -21,7 +23,30 @@ export function RequestBodyEditor({ endpoint, update }: Props) {
     update({ requestBody: { required: true, contentType: 'application/json', schema: [], ...body, ...b } });
   };
 
-  // legacy handleImportJson removed
+  const handleGenerateExample = () => {
+    if (!body?.schema || body.schema.length === 0) {
+      toast.error('Define schema properties first to generate mock.');
+      return;
+    }
+    try {
+      const schemaObj = buildSchemaFromProperties(body.schema);
+      const definitions: Record<string, unknown> = {};
+      spec.components.schemas.forEach(comp => {
+        definitions[comp.name] = buildSchemaFromProperties(comp.properties);
+      });
+      const mock = generateMockFromSchema(schemaObj, definitions);
+      const newEx = {
+        id: uuidv4(),
+        name: `generated_${uuidv4().substring(0, 4)}`,
+        summary: 'Auto-generated mock',
+        value: JSON.stringify(mock, null, 2)
+      };
+      setBody({ examples: [...(body.examples || []), newEx] });
+      toast.success('Example generated');
+    } catch (e) {
+      toast.error('Failed to generate mock');
+    }
+  };
 
   if (!hasBody) {
     return (
@@ -88,6 +113,13 @@ export function RequestBodyEditor({ endpoint, update }: Props) {
           </div>
         )}
       </div>
+
+      {/* Multiple Examples */}
+      <ExampleEditor 
+        examples={body?.examples || []} 
+        onChange={(ex) => setBody({ examples: ex })} 
+        onGenerateFromSchema={body?.mode === 'visual' && body?.schema?.length > 0 ? handleGenerateExample : undefined}
+      />
     </div>
   );
 }

@@ -3,6 +3,7 @@ import type {
   ConvertJsonToSwaggerRequest,
   SchemaType,
   SchemaProperty,
+  EndpointExample,
   EndpointParameter,
   HttpMethod,
 } from '@modern-api-studio/types';
@@ -408,6 +409,25 @@ export function convertSpecToJson(specString: string): string {
 // ApiSpec → OpenAPI 3.0 YAML/JSON
 // ============================================================
 
+function buildExamplesMap(examples?: EndpointExample[]) {
+  if (!examples || examples.length === 0) return undefined;
+  const result: Record<string, unknown> = {};
+  for (const ex of examples) {
+    let parsedValue: unknown = ex.value;
+    try {
+      if (ex.value.trim().startsWith('{') || ex.value.trim().startsWith('[')) {
+        parsedValue = JSON.parse(ex.value);
+      }
+    } catch {}
+    
+    result[ex.name || 'example'] = {
+      summary: ex.summary || undefined,
+      value: parsedValue
+    };
+  }
+  return result;
+}
+
 export function apiSpecToOpenApi3(spec: ApiSpec, format: 'json' | 'yaml' = 'yaml'): string {
   const paths: Record<string, Record<string, unknown>> = {};
 
@@ -429,19 +449,28 @@ export function apiSpecToOpenApi3(spec: ApiSpec, format: 'json' | 'yaml' = 'yaml
     const responses: Record<string, unknown> = {};
     for (const r of ep.responses) {
       const responseObj: Record<string, unknown> = { description: r.description };
+      let schemaRefOrObj: unknown = null;
+
       if (r.mode === 'ref' && r.ref) {
-        responseObj.content = { [r.contentType || 'application/json']: { schema: { $ref: `#/components/schemas/${r.ref}` } } };
+        schemaRefOrObj = { $ref: `#/components/schemas/${r.ref}` };
       } else if (r.mode === 'raw' && r.rawJson) {
         try {
-          responseObj.content = { [r.contentType || 'application/json']: { schema: jsonToSchema(JSON.parse(r.rawJson)) } };
+          schemaRefOrObj = jsonToSchema(JSON.parse(r.rawJson));
         } catch {
-          responseObj.content = { [r.contentType || 'application/json']: { schema: { type: 'object' } } };
+          schemaRefOrObj = { type: 'object' };
         }
       } else if (r.schema && r.schema.length > 0) {
-        const schemaObj = buildSchemaFromProperties(r.schema);
-        responseObj.content = {
-          [r.contentType || 'application/json']: { schema: schemaObj },
-        };
+        schemaRefOrObj = buildSchemaFromProperties(r.schema);
+      }
+
+      const contentObj: Record<string, unknown> = {};
+      if (schemaRefOrObj) contentObj.schema = schemaRefOrObj;
+      
+      const examplesMap = buildExamplesMap(r.examples);
+      if (examplesMap) contentObj.examples = examplesMap;
+
+      if (Object.keys(contentObj).length > 0) {
+        responseObj.content = { [r.contentType || 'application/json']: contentObj };
       }
       responses[r.statusCode] = responseObj;
     }
@@ -474,10 +503,16 @@ export function apiSpecToOpenApi3(spec: ApiSpec, format: 'json' | 'yaml' = 'yaml
         bodySchema = buildSchemaFromProperties(ep.requestBody.schema);
       }
       
+      const contentObj: Record<string, unknown> = {};
+      if (bodySchema) contentObj.schema = bodySchema;
+      
+      const examplesMap = buildExamplesMap(ep.requestBody.examples);
+      if (examplesMap) contentObj.examples = examplesMap;
+      
       operation.requestBody = {
         required: ep.requestBody.required,
         description: ep.requestBody.description,
-        content: { [ep.requestBody.contentType]: { schema: bodySchema } },
+        content: { [ep.requestBody.contentType]: contentObj },
       };
     }
 
@@ -522,7 +557,7 @@ export function apiSpecToOpenApi3(spec: ApiSpec, format: 'json' | 'yaml' = 'yaml
     : JSON.stringify(openApiSpec, null, 2);
 }
 
-function buildSchemaFromProperties(props: import('@modern-api-studio/types').SchemaProperty[]): Record<string, unknown> {
+export function buildSchemaFromProperties(props: import('@modern-api-studio/types').SchemaProperty[]): Record<string, unknown> {
   const properties: Record<string, unknown> = {};
   const required: string[] = [];
 

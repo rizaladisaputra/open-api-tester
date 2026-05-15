@@ -2,9 +2,11 @@ import type { Endpoint, ResponseDefinition, SchemaProperty, SchemaType } from '@
 import { v4 as uuidv4 } from 'uuid';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
+import { buildSchemaFromProperties, generateMockFromSchema } from '@modern-api-studio/utils';
 import { useApiSpecStore } from '../../store/useApiSpecStore';
 import { SchemaBuilder } from '../shared/SchemaBuilder';
 import { JsonEditor } from '../shared/JsonEditor';
+import { ExampleEditor } from '../shared/ExampleEditor';
 
 interface Props { endpoint: Endpoint; update: (c: Partial<Endpoint>) => void; }
 
@@ -38,6 +40,36 @@ export function ResponseEditor({ endpoint, update }: Props) {
 
   const removeResponse = (id: string) => {
     update({ responses: endpoint.responses.filter((r) => r.id !== id) });
+  };
+
+  const handleGenerateExample = (respId: string, schema: SchemaProperty[]) => {
+    if (!schema || schema.length === 0) {
+      toast.error('Define schema properties first to generate mock.');
+      return;
+    }
+    try {
+      const schemaObj = buildSchemaFromProperties(schema);
+      const definitions: Record<string, unknown> = {};
+      spec.components.schemas.forEach(comp => {
+        definitions[comp.name] = buildSchemaFromProperties(comp.properties);
+      });
+      const mock = generateMockFromSchema(schemaObj, definitions);
+      
+      const resp = endpoint.responses.find(r => r.id === respId);
+      if (!resp) return;
+
+      const newEx = {
+        id: uuidv4(),
+        name: `generated_${uuidv4().substring(0, 4)}`,
+        summary: 'Auto-generated mock',
+        value: JSON.stringify(mock, null, 2)
+      };
+      
+      updateResponse(respId, { examples: [...(resp.examples || []), newEx] });
+      toast.success('Example generated');
+    } catch (e) {
+      toast.error('Failed to generate mock');
+    }
   };
 
   return (
@@ -110,6 +142,14 @@ export function ResponseEditor({ endpoint, update }: Props) {
                 <SchemaBuilder properties={resp.schema || []} onChange={p => updateResponse(resp.id, { schema: p })} />
               </div>
             )}
+          </div>
+          
+          <div style={{ marginTop: 12 }}>
+            <ExampleEditor 
+              examples={resp.examples || []} 
+              onChange={(ex) => updateResponse(resp.id, { examples: ex })} 
+              onGenerateFromSchema={resp.mode === 'visual' && resp.schema && resp.schema.length > 0 ? () => handleGenerateExample(resp.id, resp.schema!) : undefined}
+            />
           </div>
         </div>
       ))}

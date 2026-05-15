@@ -56,8 +56,22 @@ export function Sidebar() {
       <div style={{ padding: '6px 12px', display: 'flex', gap: 4, flexWrap: 'wrap', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
         <button className={`btn btn-sm ${!filterTag ? 'btn-primary' : 'btn-ghost'}`} style={{ fontSize: 11, padding: '3px 8px' }} onClick={() => setFilterTag(null)}>All</button>
         {spec.tags.map((t) => (
-          <button key={t.id} className={`btn btn-sm ${filterTag === t.name ? 'btn-primary' : 'btn-ghost'}`}
-            style={{ fontSize: 11, padding: '3px 8px' }} onClick={() => setFilterTag(filterTag === t.name ? null : t.name)}>{t.name}</button>
+          <div key={t.id} style={{ display: 'flex', alignItems: 'center', background: filterTag === t.name ? 'var(--accent-primary)' : 'var(--bg-overlay)', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border)' }}>
+            <button className={`btn btn-sm ${filterTag === t.name ? 'btn-primary' : 'btn-ghost'}`}
+              style={{ fontSize: 11, padding: '3px 8px', border: 'none', borderRadius: 0 }} 
+              onClick={() => setFilterTag(filterTag === t.name ? null : t.name)}>
+              {t.name}
+            </button>
+            <button className="btn btn-ghost btn-sm hover-bg" style={{ padding: '3px 6px', fontSize: 10, borderLeft: '1px solid var(--border)', borderRadius: 0, color: 'var(--accent-red)' }} 
+              onClick={() => {
+                if(window.confirm(`Delete tag "${t.name}"?`)) {
+                  useApiSpecStore.getState().deleteTag(t.id);
+                  if (filterTag === t.name) setFilterTag(null);
+                }
+              }} title="Delete Tag">
+              ✕
+            </button>
+          </div>
         ))}
         <button className="btn btn-ghost btn-sm" style={{ fontSize: 14, padding: '0 6px' }} onClick={() => {
           const name = window.prompt('Enter new tag name:');
