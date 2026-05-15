@@ -1,4 +1,6 @@
 import { useUiStore } from './store/useUiStore';
+import { useApiSpecStore } from './store/useApiSpecStore';
+import { useCollabStore } from './store/useCollabStore';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { RightSidebar } from './components/RightSidebar';
@@ -10,14 +12,26 @@ import { SecurityPanel } from './components/security/SecurityPanel';
 import { PreviewPanel } from './components/preview/PreviewPanel';
 import { Auth } from './components/Auth';
 import { Dashboard } from './components/Dashboard';
+import { JoinProjectPage } from './components/collab/JoinProjectPage';
 import { supabase } from './lib/supabase';
 import { useEffect, useState } from 'react';
 
 export default function App() {
-  const { activePanel, sidebarCollapsed } = useUiStore();
+  const { activePanel } = useUiStore();
+  const { activeProjectId, currentUserRole } = useApiSpecStore();
+  const { subscribeToProject, unsubscribeFromProject } = useCollabStore();
+
   const [session, setSession] = useState<any>(null);
   const [inDashboard, setInDashboard] = useState(true);
 
+  // Read invite token once from URL on mount — stored in state so it can be
+  // cleared after accept/cancel without a full page reload.
+  const [inviteToken, setInviteToken] = useState<string | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('invite');
+  });
+
+  // ── Auth state ─────────────────────────────────────────────────────────────
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -31,6 +45,25 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // ── Realtime: subscribe when a project becomes active ─────────────────────
+  useEffect(() => {
+    if (!activeProjectId || !session) return;
+
+    subscribeToProject(
+      activeProjectId,
+      { id: session.user.id, email: session.user.email ?? '' },
+      currentUserRole ?? 'viewer',
+    );
+
+    return () => unsubscribeFromProject();
+  }, [activeProjectId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Clear invite token from address bar without reload ────────────────────
+  const clearInviteFromUrl = () => {
+    window.history.replaceState({}, '', window.location.pathname);
+    setInviteToken(null);
+  };
+
   const renderPanel = () => {
     switch (activePanel) {
       case 'home':       return <div className="scroll-y" style={{ padding: 24, display: 'flex', justifyContent: 'center' }}><div style={{ width: '100%', maxWidth: 800 }}><ApiInfoForm /></div></div>;
@@ -43,10 +76,31 @@ export default function App() {
     }
   };
 
+  // ── Render order ──────────────────────────────────────────────────────────
+
+  // 1. Must be authenticated first
   if (!session) {
     return <Auth />;
   }
 
+  // 2. Invite flow — shown after login so user context is available
+  if (inviteToken) {
+    return (
+      <JoinProjectPage
+        token={inviteToken}
+        onJoined={() => {
+          clearInviteFromUrl();
+          setInDashboard(false); // go straight into the project editor
+        }}
+        onCancel={() => {
+          clearInviteFromUrl();
+          setInDashboard(true);
+        }}
+      />
+    );
+  }
+
+  // 3. Dashboard — project picker
   if (inDashboard) {
     return (
       <div style={{ minHeight: '100vh', background: 'var(--bg-base)' }}>
@@ -55,6 +109,7 @@ export default function App() {
     );
   }
 
+  // 4. Main editor
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--bg-base)', overflow: 'hidden' }}>
       <Header onBackToDashboard={() => setInDashboard(true)} />

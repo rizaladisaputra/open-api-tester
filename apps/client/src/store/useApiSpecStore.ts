@@ -113,10 +113,13 @@ interface ApiSpecStore {
   searchQuery: string;
   filterTag: string | null;
   activeProjectId: string | null;
+  currentUserRole: 'owner' | 'editor' | 'viewer' | null;
 
-  loadProjectFromSupabase: (id: string) => Promise<void>;
-  createNewProject: (name: string) => Promise<void>;
+  loadProjectFromSupabase: (id: string, role?: 'owner' | 'editor' | 'viewer') => Promise<void>;
+  createNewProject: (name: string) => Promise<boolean>;
   saveProjectToSupabase: () => Promise<void>;
+  deleteProject: (id: string) => Promise<boolean>;
+  renameProject: (id: string, name: string) => Promise<boolean>;
 
   // Spec-level actions
   setSpec: (spec: ApiSpec) => void;
@@ -170,12 +173,13 @@ export const useApiSpecStore = create<ApiSpecStore>()(
       spec: DEFAULT_SPEC,
       activeEndpointId: DEFAULT_SPEC.endpoints[0]?.id ?? null,
       activeProjectId: null,
+      currentUserRole: null,
       history: [],
       historyIndex: -1,
       searchQuery: '',
       filterTag: null,
 
-      loadProjectFromSupabase: async (id: string) => {
+      loadProjectFromSupabase: async (id: string, role: 'owner' | 'editor' | 'viewer' = 'owner') => {
         const { data, error } = await supabase
           .from('projects')
           .select('spec_data')
@@ -193,13 +197,18 @@ export const useApiSpecStore = create<ApiSpecStore>()(
         set({
           spec,
           activeProjectId: id,
+          currentUserRole: role,
           activeEndpointId: spec.endpoints[0]?.id ?? null,
         });
       },
 
-      createNewProject: async (name: string) => {
+      createNewProject: async (name: string): Promise<boolean> => {
         const { data: userData } = await supabase.auth.getUser();
-        if (!userData.user) return;
+        if (!userData.user) {
+          const { toast } = await import('react-hot-toast');
+          toast.error('You must be logged in to create a project');
+          return false;
+        }
 
         const newSpec: ApiSpec = {
           ...DEFAULT_SPEC,
@@ -217,18 +226,26 @@ export const useApiSpecStore = create<ApiSpecStore>()(
           .select('id')
           .single();
 
-        if (error || !data) {
+        if (error) {
+          console.error('[createNewProject] Supabase error:', error.message, error.details ?? '', error.hint ?? '');
           const { toast } = await import('react-hot-toast');
-          toast.error('Failed to create project');
-          return;
+          toast.error(`Failed to create project: ${error.message}`);
+          return false;
+        }
+        if (!data) {
+          const { toast } = await import('react-hot-toast');
+          toast.error('Failed to create project: no data returned');
+          return false;
         }
 
         get().pushHistory();
         set({
           spec: newSpec,
           activeProjectId: data.id,
+          currentUserRole: 'owner',
           activeEndpointId: newSpec.endpoints[0]?.id ?? null,
         });
+        return true;
       },
 
       saveProjectToSupabase: async () => {
@@ -241,9 +258,59 @@ export const useApiSpecStore = create<ApiSpecStore>()(
           .eq('id', activeProjectId);
 
         if (error) {
+          console.error('[saveProjectToSupabase] Supabase error:', error.message, error.details ?? '', error.hint ?? '');
           const { toast } = await import('react-hot-toast');
-          toast.error('Failed to save project');
+          toast.error(`Failed to save project: ${error.message}`);
+          return;
         }
+
+        // Notify collaborators via Realtime broadcast
+        const { data: userData } = await supabase.auth.getUser();
+        const { useCollabStore } = await import('./useCollabStore');
+        useCollabStore.getState().broadcastSave(userData.user?.email ?? 'A collaborator');
+      },
+
+      deleteProject: async (id: string): Promise<boolean> => {
+        const { error } = await supabase
+          .from('projects')
+          .delete()
+          .eq('id', id);
+
+        if (error) {
+          console.error('[deleteProject] Supabase error:', error.message, error.details ?? '', error.hint ?? '');
+          const { toast } = await import('react-hot-toast');
+          toast.error(`Failed to delete project: ${error.message}`);
+          return false;
+        }
+
+        // If the deleted project was currently active, reset state
+        if (get().activeProjectId === id) {
+          set({ activeProjectId: null, currentUserRole: null });
+        }
+        return true;
+      },
+
+      renameProject: async (id: string, name: string): Promise<boolean> => {
+        const trimmed = name.trim();
+        if (!trimmed) return false;
+
+        const { error } = await supabase
+          .from('projects')
+          .update({ name: trimmed })
+          .eq('id', id);
+
+        if (error) {
+          console.error('[renameProject] Supabase error:', error.message, error.details ?? '', error.hint ?? '');
+          const { toast } = await import('react-hot-toast');
+          toast.error(`Failed to rename project: ${error.message}`);
+          return false;
+        }
+
+        // Keep spec.info.title in sync if this is the currently active project
+        if (get().activeProjectId === id) {
+          set((s) => ({ spec: { ...s.spec, info: { ...s.spec.info, title: trimmed } } }));
+        }
+        return true;
       },
 
       pushHistory: () => {
@@ -432,6 +499,17 @@ export const useApiSpecStore = create<ApiSpecStore>()(
         set({ spec: { ...DEFAULT_SPEC, id: uuidv4() }, activeEndpointId: DEFAULT_SPEC.endpoints[0]?.id ?? null });
       },
     }),
-    { name: 'api-spec-store', version: 1 }
+    {
+      name: 'api-spec-store',
+      version: 1,
+      // Migrate persisted state between versions.
+      // When bumping `version`, add a case here to transform the old shape.
+      migrate: (persistedState: unknown, fromVersion: number): ApiSpecStore => {
+        const s = persistedState as ApiSpecStore;
+        // v0 → v1: no breaking changes
+        if (fromVersion < 1) return s;
+        return s;
+      },
+    }
   )
 );

@@ -73,14 +73,19 @@ VITE_SUPABASE_ANON_KEY=<your-anon-key>
 
 ### 3. Run the Supabase migration
 
-In your [Supabase SQL Editor](https://app.supabase.com), run:
+We provide an automated script to set up all tables, Row Level Security (RLS) policies, and database functions.
 
-```bash
-# Paste and execute the contents of:
-supabase/migrations/001_create_projects.sql
-```
+1. Find your **Database Connection String (URI)** in the Supabase Dashboard under **Settings → Database**.
+2. Add it to your `apps/client/.env` file:
+   ```env
+   DATABASE_URL="postgresql://postgres.[your-project-ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres"
+   ```
+3. Run the migration script:
+   ```bash
+   npm run migrate
+   ```
 
-This creates the `projects` table with Row Level Security — users can only access their own projects.
+This creates the `projects`, `project_members`, and `project_invites` tables with RLS enabled.
 
 ### 4. Start the development server
 
