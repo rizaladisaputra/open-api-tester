@@ -1,87 +1,125 @@
 # ⚡ Modern API Studio
 
-Modern API Studio is a powerful, offline-capable, and incredibly fast OpenAPI and Swagger designer built directly in the browser. It streamlines the API design workflow by providing a visual interface for constructing endpoints, generating specs, and even executing HTTP requests against your APIs.
+Modern API Studio is a powerful OpenAPI and Swagger designer built in the browser. It provides a visual interface for constructing endpoints, generating specs, and executing HTTP requests against your APIs — with cloud persistence via Supabase.
 
 ## ✨ Features
 
-- **Visual API Designer**: Construct endpoints, query/path parameters, headers, and request/response bodies using an intuitive visual builder instead of writing YAML by hand.
-- **Raw JSON Schema Inference**: Paste raw JSON payloads, and the studio will automatically infer and construct the OpenAPI schema for you.
-- **Advanced HTTP Test Runner**: A built-in Postman-like execution panel. Test your API endpoints directly from the browser with dynamic path parameters, custom headers, editable JSON bodies, and detailed response metrics (Time, Size, Status Code).
-- **Format Converter**: Convert seamlessly between OpenAPI 3.0 and Swagger 2.0, as well as between JSON and YAML formats.
-- **Mock Data Generator**: Automatically generates sample JSON payloads based on your defined OpenAPI schemas.
-- **Real-Time Preview**: Instantly view the generated YAML or JSON specification as you build your API.
-- **Tag & Component Management**: Organize your APIs into logical tags and define reusable Schema Components and Global Security configurations.
-- **Local Persistence**: Works entirely offline. Your API specifications are securely saved in your local browser storage using Zustand persist.
+- **Visual API Designer** — Build endpoints, parameters, headers, request/response bodies without writing YAML by hand
+- **Raw JSON Schema Inference** — Paste JSON payloads and automatically infer the OpenAPI schema
+- **Advanced HTTP Test Runner** — A built-in Postman-like panel with dynamic path params, custom headers, editable JSON bodies, and detailed response metrics
+- **Format Converter** — Convert between OpenAPI 3.0 ↔ Swagger 2.0 and JSON ↔ YAML
+- **Mock Data Generator** — Auto-generate sample JSON payloads from your OpenAPI schemas
+- **Real-Time Preview** — Instantly view generated YAML/JSON as you build
+- **Tag & Component Management** — Organize APIs into logical tags with reusable Schema Components and Global Security configs
+- **Cloud Persistence** — Projects are saved to Supabase (per-user, with Row Level Security)
+- **Local Persistence** — Zustand persist keeps your last spec in browser storage as a fallback
 
 ## 🛠 Tech Stack
 
-- **Framework**: React 18 with Vite
-- **Language**: TypeScript
-- **State Management**: Zustand
-- **Code Editor**: Monaco Editor (VS Code core)
-- **Styling**: Vanilla CSS with a custom Catppuccin-inspired dark theme
+| Layer | Technology |
+|-------|-----------|
+| Framework | React 18 + Vite |
+| Language | TypeScript |
+| State Management | Zustand |
+| Code Editor | Monaco Editor (VS Code core) |
+| Styling | Vanilla CSS — custom Catppuccin-inspired dark theme |
+| Auth & DB | Supabase (Auth + PostgreSQL + Row Level Security) |
 
 ## 📦 Project Structure
-
-This project is structured as an npm monorepo (workspaces):
 
 ```text
 OpenAPI/
 ├── apps/
-│   ├── client/       # The main React application (Vite)
-│   └── server/       # (Optional) Backend proxy or server
+│   ├── client/          # React application (Vite)
+│   └── server/          # Optional backend proxy
 ├── packages/
-│   ├── types/        # Shared TypeScript definitions (OpenAPI specs, etc.)
-│   └── utils/        # Core logic for schema inference, spec conversion, etc.
-└── package.json      # Monorepo root
+│   ├── types/           # Shared TypeScript definitions
+│   └── utils/           # Schema inference, spec conversion logic
+├── supabase/
+│   └── migrations/      # SQL migrations for Supabase
+└── package.json         # Monorepo root (npm workspaces)
 ```
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 
-- Node.js (v18 or newer recommended)
-- npm (v7+ for workspace support)
+- Node.js v18+
+- npm v7+ (for workspace support)
+- A [Supabase](https://supabase.com) project (free tier works)
 
-### Installation
+### 1. Install dependencies
 
-1. Clone this repository.
-2. Install dependencies at the root of the project to bootstrap the monorepo:
-   ```bash
-   npm install
-   ```
+```bash
+npm install
+```
 
-### Development
+### 2. Configure environment variables
 
-To start the development server for the React application:
+Copy the example and fill in your Supabase credentials:
+
+```bash
+cp apps/client/.env.example apps/client/.env
+```
+
+**`apps/client/.env`**
+
+```env
+VITE_SUPABASE_URL=https://<your-project-ref>.supabase.co
+VITE_SUPABASE_ANON_KEY=<your-anon-key>
+```
+
+> Find these in your Supabase project under **Settings → API**.
+
+### 3. Run the Supabase migration
+
+In your [Supabase SQL Editor](https://app.supabase.com), run:
+
+```bash
+# Paste and execute the contents of:
+supabase/migrations/001_create_projects.sql
+```
+
+This creates the `projects` table with Row Level Security — users can only access their own projects.
+
+### 4. Start the development server
 
 ```bash
 npm run dev --workspace=@modern-api-studio/client
+# or
+cd apps/client && npm run dev
 ```
 
-Or you can navigate directly to the client directory and run the script:
-```bash
-cd apps/client
-npm run dev
-```
+App runs at **http://localhost:5173**
 
-The app will be running at `http://localhost:5173`.
+## 🗄 Database Schema
 
-### Building for Production
+### `projects` table
 
-To build the project for production deployment:
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | `uuid` | Primary key |
+| `user_id` | `uuid` | References `auth.users(id)` |
+| `name` | `text` | Project display name |
+| `spec_data` | `jsonb` | Full OpenAPI spec (internal format) |
+| `created_at` | `timestamptz` | Creation timestamp |
+| `updated_at` | `timestamptz` | Auto-updated on every change |
+
+Row Level Security is enabled — all queries are automatically scoped to the authenticated user.
+
+## 🏗 Building for Production
 
 ```bash
 cd apps/client
 npm run build
 ```
 
-The compiled static assets will be available in the `apps/client/dist` directory.
+Static assets are output to `apps/client/dist/`.
 
 ## 🤝 Contributing
 
-Contributions are welcome! Feel free to open an issue or submit a pull request for new features, bug fixes, or enhancements.
+Contributions are welcome! Open an issue or submit a pull request for new features, bug fixes, or enhancements.
 
 ## 📄 License
 
-This project is open-source and available under the MIT License.
+MIT License

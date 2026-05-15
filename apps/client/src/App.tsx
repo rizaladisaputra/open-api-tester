@@ -8,9 +8,28 @@ import { ConverterPanel } from './components/converter/ConverterPanel';
 import { ComponentsPanel } from './components/components/ComponentsPanel';
 import { SecurityPanel } from './components/security/SecurityPanel';
 import { PreviewPanel } from './components/preview/PreviewPanel';
+import { Auth } from './components/Auth';
+import { Dashboard } from './components/Dashboard';
+import { supabase } from './lib/supabase';
+import { useEffect, useState } from 'react';
 
 export default function App() {
   const { activePanel, sidebarCollapsed } = useUiStore();
+  const [session, setSession] = useState<any>(null);
+  const [inDashboard, setInDashboard] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (!session) setInDashboard(true);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const renderPanel = () => {
     switch (activePanel) {
@@ -24,9 +43,21 @@ export default function App() {
     }
   };
 
+  if (!session) {
+    return <Auth />;
+  }
+
+  if (inDashboard) {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--bg-base)' }}>
+        <Dashboard onProjectSelect={() => setInDashboard(false)} />
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--bg-base)', overflow: 'hidden' }}>
-      <Header />
+      <Header onBackToDashboard={() => setInDashboard(true)} />
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Sidebar />
         <main style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', animation: 'fadeIn 0.2s ease' }}>

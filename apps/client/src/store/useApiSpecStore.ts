@@ -5,6 +5,7 @@ import type {
   ApiSpec, Endpoint, ApiTag, SchemaComponent, SecurityScheme,
   HttpMethod, ResponseDefinition, EndpointParameter, RequestBodyDefinition,
 } from '@modern-api-studio/types';
+import { supabase } from '../lib/supabase';
 
 const DEFAULT_SPEC: ApiSpec = {
   id: uuidv4(),
@@ -111,6 +112,11 @@ interface ApiSpecStore {
   historyIndex: number;
   searchQuery: string;
   filterTag: string | null;
+  activeProjectId: string | null;
+
+  loadProjectFromSupabase: (id: string) => Promise<void>;
+  createNewProject: (name: string) => Promise<void>;
+  saveProjectToSupabase: () => Promise<void>;
 
   // Spec-level actions
   setSpec: (spec: ApiSpec) => void;
@@ -163,10 +169,82 @@ export const useApiSpecStore = create<ApiSpecStore>()(
     (set, get) => ({
       spec: DEFAULT_SPEC,
       activeEndpointId: DEFAULT_SPEC.endpoints[0]?.id ?? null,
+      activeProjectId: null,
       history: [],
       historyIndex: -1,
       searchQuery: '',
       filterTag: null,
+
+      loadProjectFromSupabase: async (id: string) => {
+        const { data, error } = await supabase
+          .from('projects')
+          .select('spec_data')
+          .eq('id', id)
+          .single();
+
+        if (error || !data) {
+          const { toast } = await import('react-hot-toast');
+          toast.error('Failed to load project');
+          return;
+        }
+
+        const spec = data.spec_data as ApiSpec;
+        get().pushHistory();
+        set({
+          spec,
+          activeProjectId: id,
+          activeEndpointId: spec.endpoints[0]?.id ?? null,
+        });
+      },
+
+      createNewProject: async (name: string) => {
+        const { data: userData } = await supabase.auth.getUser();
+        if (!userData.user) return;
+
+        const newSpec: ApiSpec = {
+          ...DEFAULT_SPEC,
+          id: uuidv4(),
+          info: { ...DEFAULT_SPEC.info, title: name },
+        };
+
+        const { data, error } = await supabase
+          .from('projects')
+          .insert({
+            user_id: userData.user.id,
+            name,
+            spec_data: newSpec,
+          })
+          .select('id')
+          .single();
+
+        if (error || !data) {
+          const { toast } = await import('react-hot-toast');
+          toast.error('Failed to create project');
+          return;
+        }
+
+        get().pushHistory();
+        set({
+          spec: newSpec,
+          activeProjectId: data.id,
+          activeEndpointId: newSpec.endpoints[0]?.id ?? null,
+        });
+      },
+
+      saveProjectToSupabase: async () => {
+        const { spec, activeProjectId } = get();
+        if (!activeProjectId) return;
+
+        const { error } = await supabase
+          .from('projects')
+          .update({ spec_data: spec, name: spec.info.title })
+          .eq('id', activeProjectId);
+
+        if (error) {
+          const { toast } = await import('react-hot-toast');
+          toast.error('Failed to save project');
+        }
+      },
 
       pushHistory: () => {
         const { spec, history, historyIndex } = get();

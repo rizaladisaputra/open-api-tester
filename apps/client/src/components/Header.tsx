@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useApiSpecStore } from '../store/useApiSpecStore';
 import { useUiStore } from '../store/useUiStore';
 import { apiSpecToOpenApi3, detectFormat } from '@modern-api-studio/utils';
@@ -12,9 +13,18 @@ const NAV_ITEMS = [
   { id: 'preview',    label: 'Preview',     icon: '◉' },
 ] as const;
 
-export function Header() {
-  const { spec, undo, redo, historyIndex, history } = useApiSpecStore();
-  const { activePanel, setActivePanel, toggleDarkMode } = useUiStore();
+export function Header({ onBackToDashboard }: { onBackToDashboard?: () => void }) {
+  const { spec, undo, redo, historyIndex, history, activeProjectId, saveProjectToSupabase } = useApiSpecStore();
+  const { activePanel, setActivePanel } = useUiStore();
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!activeProjectId) return;
+    setSaving(true);
+    await saveProjectToSupabase();
+    toast.success('Project saved');
+    setSaving(false);
+  };
 
   const handleExportYaml = () => {
     const yaml = apiSpecToOpenApi3(spec, 'yaml');
@@ -34,8 +44,18 @@ export function Header() {
       background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)',
       padding: '0 16px', height: '52px', flexShrink: 0, zIndex: 100,
     }}>
-      {/* Logo */}
+      {/* Logo / Back */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginRight: 24 }}>
+        {onBackToDashboard && (
+          <button
+            className="btn btn-ghost btn-sm btn-icon"
+            onClick={onBackToDashboard}
+            data-tooltip="Back to Projects"
+            style={{ fontSize: 16 }}
+          >
+            ←
+          </button>
+        )}
         <div style={{
           width: 32, height: 32, borderRadius: 8,
           background: 'linear-gradient(135deg, var(--accent-blue), var(--accent-purple))',
@@ -67,6 +87,16 @@ export function Header() {
         <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 4px' }} />
         <button className="btn btn-ghost btn-sm" onClick={handleExportYaml}>↓ YAML</button>
         <button className="btn btn-ghost btn-sm" onClick={handleExportJson}>↓ JSON</button>
+        {activeProjectId && (
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={handleSave}
+            disabled={saving}
+            data-tooltip="Save to cloud"
+          >
+            {saving ? '…' : '☁ Save'}
+          </button>
+        )}
         <button className="btn btn-primary btn-sm" onClick={() => setActivePanel('preview')}>▶ Preview</button>
       </div>
     </header>
