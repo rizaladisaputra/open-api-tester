@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useApiSpecStore } from '../../store/useApiSpecStore';
-import type { SchemaComponent, SchemaProperty } from '@modern-api-studio/types';
-import { v4 as uuidv4 } from 'uuid';
+import type { SchemaComponent } from '@modern-api-studio/types';
 import toast from 'react-hot-toast';
 import { jsonToProperties } from '@modern-api-studio/utils';
 import { SchemaBuilder } from '../shared/SchemaBuilder';

@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useApiSpecStore } from '../../store/useApiSpecStore';
 import type { SecurityScheme, SecuritySchemeType } from '@modern-api-studio/types';
-import { v4 as uuidv4 } from 'uuid';
 import toast from 'react-hot-toast';
 
 const SCHEME_TYPES: { value: SecuritySchemeType; label: string; desc: string; icon: string }[] = [

@@ -3,13 +3,9 @@ import { useApiSpecStore } from '../../store/useApiSpecStore';
 import { apiSpecToOpenApi3 } from '@modern-api-studio/utils';
 import MonacoEditor from '@monaco-editor/react';
 import { generateMockFromSchema } from '@modern-api-studio/utils';
-import type { HttpMethod } from '@modern-api-studio/types';
 import toast from 'react-hot-toast';
 import { TestRunner } from './TestRunner';
 
-const METHOD_COLORS: Record<HttpMethod, string> = {
-  GET: '#a6e3a1', POST: '#89b4fa', PUT: '#f9e2af', PATCH: '#fab387', DELETE: '#f38ba8',
-};
 
 export function PreviewPanel() {
   const { spec } = useApiSpecStore();

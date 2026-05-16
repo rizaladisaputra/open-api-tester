@@ -1,14 +1,9 @@
 import { useState } from 'react';
 import { useApiSpecStore } from '../store/useApiSpecStore';
 import { useUiStore } from '../store/useUiStore';
-import type { HttpMethod } from '@modern-api-studio/types';
-
-const METHOD_COLORS: Record<HttpMethod, string> = {
-  GET: 'badge-get', POST: 'badge-post', PUT: 'badge-put', PATCH: 'badge-patch', DELETE: 'badge-delete',
-};
 
 export function Sidebar() {
-  const { spec, activeEndpointId, setActiveEndpoint, addEndpoint, deleteEndpoint, searchQuery, setSearchQuery, filterTag, setFilterTag } = useApiSpecStore();
+  const { spec, activeEndpointId, setActiveEndpoint, addEndpoint, searchQuery, setSearchQuery, filterTag, setFilterTag } = useApiSpecStore();
   const { sidebarCollapsed, toggleSidebar, setActivePanel } = useUiStore();
   const [expandedTags, setExpandedTags] = useState<Set<string>>(new Set(['Users', 'Products', 'Authentication']));
 

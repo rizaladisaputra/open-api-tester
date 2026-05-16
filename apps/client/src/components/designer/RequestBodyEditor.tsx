@@ -1,6 +1,5 @@
-import type { Endpoint, SchemaProperty, SchemaType, ContentType, RequestBodyDefinition } from '@modern-api-studio/types';
+import type { Endpoint, ContentType, RequestBodyDefinition } from '@modern-api-studio/types';
 import { v4 as uuidv4 } from 'uuid';
-import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { buildSchemaFromProperties, generateMockFromSchema } from '@modern-api-studio/utils';
 import { useApiSpecStore } from '../../store/useApiSpecStore';
@@ -10,7 +9,6 @@ import { ExampleEditor } from '../shared/ExampleEditor';
 
 interface Props { endpoint: Endpoint; update: (c: Partial<Endpoint>) => void; }
 
-const SCHEMA_TYPES: SchemaType[] = ['string', 'number', 'integer', 'boolean', 'object', 'array'];
 const CONTENT_TYPES: ContentType[] = ['application/json', 'multipart/form-data', 'application/x-www-form-urlencoded'];
 
 export function RequestBodyEditor({ endpoint, update }: Props) {

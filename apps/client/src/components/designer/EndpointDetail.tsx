@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useApiSpecStore } from '../../store/useApiSpecStore';
-import type { Endpoint, HttpMethod, EndpointParameter, ResponseDefinition, SchemaProperty } from '@modern-api-studio/types';
-import { v4 as uuidv4 } from 'uuid';
+import type { Endpoint, HttpMethod } from '@modern-api-studio/types';
 import { ParamsEditor } from './ParamsEditor';
 import { RequestBodyEditor } from './RequestBodyEditor';
 import { ResponseEditor } from './ResponseEditor';

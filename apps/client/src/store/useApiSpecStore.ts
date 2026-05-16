@@ -3,7 +3,6 @@ import { persist } from 'zustand/middleware';
 import { v4 as uuidv4 } from 'uuid';
 import type {
   ApiSpec, Endpoint, ApiTag, SchemaComponent, SecurityScheme,
-  HttpMethod, ResponseDefinition, EndpointParameter, RequestBodyDefinition,
 } from '@modern-api-studio/types';
 import { supabase } from '../lib/supabase';
 

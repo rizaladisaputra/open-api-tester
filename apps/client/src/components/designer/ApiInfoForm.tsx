@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useApiSpecStore } from '../../store/useApiSpecStore';
-import toast from 'react-hot-toast';
 
 export function ApiInfoForm() {
   const { spec, updateInfo, setGlobalSecurity, setOpenApiVersion } = useApiSpecStore();

@@ -2,7 +2,7 @@ import { useApiSpecStore } from '../../store/useApiSpecStore';
 import { useUiStore } from '../../store/useUiStore';
 import { EndpointDetail } from './EndpointDetail';
 // ApiInfoForm moved to home tab
-import { apiSpecToOpenApi3, yaml } from '@modern-api-studio/utils';
+import { apiSpecToOpenApi3 } from '@modern-api-studio/utils';
 import MonacoEditor from '@monaco-editor/react';
 import toast from 'react-hot-toast';
 import { useState } from 'react';
