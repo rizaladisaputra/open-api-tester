@@ -217,7 +217,7 @@ function buildEndpointSpec(
 export function convertJsonToOpenApi3(
   req: ConvertJsonToSwaggerRequest,
 ): string {
-  const json = JSON.parse(req.json);
+  const json = JSON.parse(stripJsonComments(req.json));
   const schemaName = pascalCase(req.title || 'Schema');
   const basePath = req.basePath || '/api/v1/items';
   const baseUrl = req.baseUrl || 'https://api.example.com';
@@ -280,7 +280,7 @@ export function convertJsonToOpenApi3(
 export function convertJsonToSwagger2(
   req: ConvertJsonToSwaggerRequest,
 ): string {
-  const json = JSON.parse(req.json);
+  const json = JSON.parse(stripJsonComments(req.json));
   const schemaName = pascalCase(req.title || 'Schema');
   const basePath = req.basePath || '/api/v1/items';
   const baseUrl = req.baseUrl || 'https://api.example.com';
@@ -384,7 +384,7 @@ export function generateMockFromSchema(schema: Record<string, unknown>, definiti
 export function convertSpecToJson(specString: string): string {
   let spec: Record<string, unknown>;
   try {
-    spec = JSON.parse(specString);
+    spec = JSON.parse(stripJsonComments(specString));
   } catch {
     spec = yaml.load(specString) as Record<string, unknown>;
   }
@@ -416,7 +416,7 @@ function buildExamplesMap(examples?: EndpointExample[]) {
     let parsedValue: unknown = ex.value;
     try {
       if (ex.value.trim().startsWith('{') || ex.value.trim().startsWith('[')) {
-        parsedValue = JSON.parse(ex.value);
+        parsedValue = JSON.parse(stripJsonComments(ex.value));
       }
     } catch {}
     
@@ -455,7 +455,7 @@ export function apiSpecToOpenApi3(spec: ApiSpec, format: 'json' | 'yaml' = 'yaml
         schemaRefOrObj = { $ref: `#/components/schemas/${r.ref}` };
       } else if (r.mode === 'raw' && r.rawJson) {
         try {
-          schemaRefOrObj = jsonToSchema(JSON.parse(r.rawJson));
+          schemaRefOrObj = jsonToSchema(JSON.parse(stripJsonComments(r.rawJson)));
         } catch {
           schemaRefOrObj = { type: 'object' };
         }
@@ -495,7 +495,7 @@ export function apiSpecToOpenApi3(spec: ApiSpec, format: 'json' | 'yaml' = 'yaml
         bodySchema = { $ref: `#/components/schemas/${ep.requestBody.ref}` };
       } else if (ep.requestBody.mode === 'raw' && ep.requestBody.rawJson) {
         try {
-          bodySchema = jsonToSchema(JSON.parse(ep.requestBody.rawJson));
+          bodySchema = jsonToSchema(JSON.parse(stripJsonComments(ep.requestBody.rawJson)));
         } catch {
           bodySchema = { type: 'object' };
         }
@@ -621,6 +621,39 @@ export function prettifyJson(json: string): string {
 export function prettifyYaml(yamlStr: string): string {
   const obj = yaml.load(yamlStr);
   return yaml.dump(obj, { indent: 2 });
+}
+
+export function stripJsonComments(text: string): string {
+  let result = '';
+  let i = 0;
+  let inString = false;
+  let escape = false;
+
+  while (i < text.length) {
+    const ch = text[i];
+
+    if (escape) { result += ch; escape = false; i++; continue; }
+    if (ch === '\\' && inString) { result += ch; escape = true; i++; continue; }
+    if (ch === '"') { inString = !inString; result += ch; i++; continue; }
+
+    if (!inString) {
+      if (ch === '/' && text[i + 1] === '/') {
+        while (i < text.length && text[i] !== '\n') i++;
+        continue;
+      }
+      if (ch === '/' && text[i + 1] === '*') {
+        i += 2;
+        while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) i++;
+        i += 2;
+        continue;
+      }
+    }
+
+    result += ch;
+    i++;
+  }
+
+  return result;
 }
 
 export { yaml };
