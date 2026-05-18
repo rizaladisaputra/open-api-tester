@@ -59,6 +59,7 @@ export interface EndpointParameter {
     format?: string;
     example?: unknown;
     enum?: string[];
+    items?: { id?: string; name?: string; type: string; required?: boolean };
   };
 }
 

@@ -13,7 +13,7 @@ interface Props {
   minHeight?: number;
 }
 
-export function JsonEditor({ value, onChange, placeholder, minHeight = 150 }: Props) {
+export function JsonEditor({ value, onChange, minHeight = 150 }: Props) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const editorRef = useRef<any>(null);
   

@@ -113,7 +113,7 @@ export function Header({ onBackToDashboard }: { onBackToDashboard?: () => void }
     spec, undo, redo, historyIndex, history,
     activeProjectId, currentUserRole,
     saveProjectToSupabase, loadProjectFromSupabase,
-    localUpdatedAt, lastSavedAt,
+    lastSavedAt,
   } = useApiSpecStore();
   const { activePanel, setActivePanel } = useUiStore();
   const {
