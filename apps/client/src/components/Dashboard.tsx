@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useApiSpecStore } from '../store/useApiSpecStore';
 import { useCollabStore } from '../store/useCollabStore';
 import { MembersPanel } from './collab/MembersPanel';
+import { ImportYamlModal } from './ImportYamlModal';
 import toast from 'react-hot-toast';
 
 interface Project {
@@ -17,6 +18,7 @@ export function Dashboard({ onProjectSelect }: { onProjectSelect: () => void }) 
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [membersProjectId, setMembersProjectId] = useState<string | null>(null);
+  const [showImport, setShowImport] = useState(false);
   const { loadProjectFromSupabase, createNewProject, deleteProject, renameProject } = useApiSpecStore();
   const { fetchMembers } = useCollabStore();
 
@@ -147,6 +149,14 @@ export function Dashboard({ onProjectSelect }: { onProjectSelect: () => void }) 
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="btn btn-ghost" onClick={handleSignOut}>Sign Out</button>
+          <button
+            className="btn btn-ghost"
+            onClick={() => setShowImport(true)}
+            title="Import an OpenAPI YAML or JSON file as a new project"
+            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            📥 Import YAML
+          </button>
           <button className="btn btn-primary" onClick={handleCreate}>+ New Project</button>
         </div>
       </div>
@@ -206,6 +216,17 @@ export function Dashboard({ onProjectSelect }: { onProjectSelect: () => void }) 
           projectId={membersProjectId}
           isOwner={projects.find((p) => p.id === membersProjectId)?.myRole === 'owner'}
           onClose={() => setMembersProjectId(null)}
+        />
+      )}
+
+      {/* Import YAML modal */}
+      {showImport && (
+        <ImportYamlModal
+          onClose={() => setShowImport(false)}
+          onImported={() => {
+            setShowImport(false);
+            onProjectSelect();
+          }}
         />
       )}
     </div>
