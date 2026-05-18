@@ -4,7 +4,7 @@ import { extractPathParams } from '@modern-api-studio/utils';
 
 interface Props { endpoint: Endpoint; update: (c: Partial<Endpoint>) => void; }
 
-const PARAM_TYPES: SchemaType[] = ['string', 'integer', 'number', 'boolean'];
+const PARAM_TYPES: SchemaType[] = ['string', 'integer', 'number', 'boolean', 'array'];
 
 export function ParamsEditor({ endpoint, update }: Props) {
   const addParam = (location: ParameterLocation) => {
@@ -56,7 +56,14 @@ export function ParamsEditor({ endpoint, update }: Props) {
                 </div>
                 <div style={{ width: 90 }}>
                   <select className="input" style={{ fontSize: 12, marginBottom: 4 }} value={p.schema.type}
-                    onChange={(e) => updateParam(p.id, { schema: { ...p.schema, type: e.target.value as SchemaType } })}>
+                    onChange={(e) => {
+                      const type = e.target.value as SchemaType;
+                      updateParam(p.id, { 
+                        schema: type === 'array' 
+                          ? { ...p.schema, type, items: { id: uuidv4(), name: 'items', type: 'string', required: true } }
+                          : { ...p.schema, type }
+                      });
+                    }}>
                     {PARAM_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                   </select>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, cursor: 'pointer', color: 'var(--text-muted)' }}>

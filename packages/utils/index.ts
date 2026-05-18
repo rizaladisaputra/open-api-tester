@@ -445,13 +445,23 @@ export function apiSpecToOpenApi3(spec: ApiSpec, format: 'json' | 'yaml' = 'yaml
       return userDef || ext;
     });
 
-    const parameters = [...finalPathParams, ...queryParams, ...headerParams].map((p) => ({
-      name: p.name,
-      in: p.in,
-      required: p.in === 'path' ? true : p.required,
-      description: p.description,
-      schema: p.schema,
-    }));
+    const parameters = [...finalPathParams, ...queryParams, ...headerParams].map((p) => {
+      const baseParam: any = {
+        name: p.name,
+        in: p.in,
+        required: p.in === 'path' ? true : p.required,
+        description: p.description,
+        schema: p.schema,
+      };
+      
+      // If array in query, use comma-separated style
+      if (p.in === 'query' && p.schema?.type === 'array') {
+        baseParam.style = 'form';
+        baseParam.explode = false;
+      }
+      
+      return baseParam;
+    });
 
     const responses: Record<string, unknown> = {};
     for (const r of ep.responses) {
