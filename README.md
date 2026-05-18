@@ -4,15 +4,16 @@ Modern API Studio is a powerful OpenAPI and Swagger designer built in the browse
 
 ## ✨ Features
 
-- **Visual API Designer** — Build endpoints, parameters, headers, request/response bodies without writing YAML by hand
-- **Raw JSON Schema Inference** — Paste JSON payloads and automatically infer the OpenAPI schema
-- **Advanced HTTP Test Runner** — A built-in Postman-like panel with dynamic path params, custom headers, editable JSON bodies, and detailed response metrics
-- **Format Converter** — Convert between OpenAPI 3.0 ↔ Swagger 2.0 and JSON ↔ YAML
-- **Mock Data Generator** — Auto-generate sample JSON payloads from your OpenAPI schemas
-- **Real-Time Preview** — Instantly view generated YAML/JSON as you build
-- **Tag & Component Management** — Organize APIs into logical tags with reusable Schema Components and Global Security configs
-- **Cloud Persistence** — Projects are saved to Supabase (per-user, with Row Level Security)
-- **Local Persistence** — Zustand persist keeps your last spec in browser storage as a fallback
+- **Visual API Designer** — Build endpoints, parameters, headers, request/response bodies without writing YAML by hand. Includes automated path parameter extraction (e.g., `/users/{id}`).
+- **Interactive Swagger UI Preview** — See your OpenAPI specification rendered in real-time using an interactive Swagger UI split-screen preview.
+- **JSONC Payload Editor** — Write JSON payloads with native support for comments using Monaco Editor.
+- **Raw JSON Schema Inference** — Paste JSON payloads and automatically infer the OpenAPI schema.
+- **Advanced HTTP Test Runner** — A built-in Postman-like panel with dynamic path params, custom headers, editable JSON bodies, and detailed response metrics.
+- **Format Converter** — Convert between OpenAPI 3.0 ↔ Swagger 2.0 and JSON ↔ YAML.
+- **Array Query Parameters** — Support for comma-separated array query parameters (e.g., `?status=A,B,C`).
+- **Mock Data Generator** — Auto-generate sample JSON payloads from your OpenAPI schemas.
+- **Real-Time Collaboration & Cloud Persistence** — Projects are saved to Supabase with real-time multi-user editing, presence indicators, and role-based access control (Owner, Editor, Viewer).
+- **Local Persistence** — Zustand persist keeps your last spec in browser storage as a fallback.
 
 ## 🛠 Tech Stack
 
@@ -21,9 +22,10 @@ Modern API Studio is a powerful OpenAPI and Swagger designer built in the browse
 | Framework | React 18 + Vite |
 | Language | TypeScript |
 | State Management | Zustand |
-| Code Editor | Monaco Editor (VS Code core) |
+| Code Editor | Monaco Editor (JSONC) |
+| API Preview | Swagger UI React |
 | Styling | Vanilla CSS — custom Catppuccin-inspired dark theme |
-| Auth & DB | Supabase (Auth + PostgreSQL + Row Level Security) |
+| Auth & DB | Supabase (Auth + PostgreSQL + Realtime) |
 
 ## 📦 Project Structure
 
