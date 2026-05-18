@@ -50,8 +50,12 @@ interface CollabStore {
   hasRemoteChange: boolean;
   lastSyncedAt: Date | null;
   remoteChangedBy: string | null;
+  // Save lock — who is currently saving (null = nobody)
+  saveLockOwner: string | null;
+  saveLockAt: Date | null;
   // Channel ref
   _channel: RealtimeChannel | null;
+  _saveLockTimer: ReturnType<typeof setTimeout> | null;
 
   // Actions
   subscribeToProject: (projectId: string, currentUser: { id: string; email: string }, role: 'owner' | 'editor' | 'viewer') => void;
@@ -64,6 +68,8 @@ interface CollabStore {
   updateMemberRole: (memberId: string, role: 'editor' | 'viewer') => Promise<void>;
   acceptInvite: (token: string) => Promise<{ projectId: string; role: string } | null>;
   broadcastSave: (savedByEmail: string) => void;
+  broadcastSaveLock: (email: string) => void;
+  broadcastSaveUnlock: () => void;
   clearRemoteChange: () => void;
 }
 
@@ -74,7 +80,10 @@ export const useCollabStore = create<CollabStore>((set, get) => ({
   hasRemoteChange: false,
   lastSyncedAt: null,
   remoteChangedBy: null,
+  saveLockOwner: null,
+  saveLockAt: null,
   _channel: null,
+  _saveLockTimer: null,
 
   subscribeToProject: (projectId, currentUser, role) => {
     // Unsubscribe from any existing channel first
@@ -98,7 +107,28 @@ export const useCollabStore = create<CollabStore>((set, get) => ({
           hasRemoteChange: true,
           remoteChangedBy: payload.savedByEmail ?? 'A collaborator',
           lastSyncedAt: new Date(),
+          // Clear lock when save is complete
+          saveLockOwner: null,
+          saveLockAt: null,
         });
+        const t = get()._saveLockTimer;
+        if (t) clearTimeout(t);
+      })
+      .on('broadcast', { event: 'save_lock' }, ({ payload }) => {
+        // Another collaborator started saving — lock the Save button for them
+        const prev = get()._saveLockTimer;
+        if (prev) clearTimeout(prev);
+        set({ saveLockOwner: payload.email ?? 'A collaborator', saveLockAt: new Date() });
+        // Auto-expire lock after 8 s in case unlock event is lost
+        const timer = setTimeout(() => {
+          set({ saveLockOwner: null, saveLockAt: null, _saveLockTimer: null });
+        }, 8_000);
+        set({ _saveLockTimer: timer });
+      })
+      .on('broadcast', { event: 'save_unlock' }, () => {
+        const t = get()._saveLockTimer;
+        if (t) clearTimeout(t);
+        set({ saveLockOwner: null, saveLockAt: null, _saveLockTimer: null });
       })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
@@ -115,10 +145,11 @@ export const useCollabStore = create<CollabStore>((set, get) => ({
   },
 
   unsubscribeFromProject: () => {
-    const { _channel } = get();
+    const { _channel, _saveLockTimer } = get();
+    if (_saveLockTimer) clearTimeout(_saveLockTimer);
     if (_channel) {
       supabase.removeChannel(_channel);
-      set({ _channel: null, onlineUsers: [], hasRemoteChange: false, remoteChangedBy: null });
+      set({ _channel: null, onlineUsers: [], hasRemoteChange: false, remoteChangedBy: null, saveLockOwner: null, saveLockAt: null, _saveLockTimer: null });
     }
   },
 
@@ -275,6 +306,18 @@ export const useCollabStore = create<CollabStore>((set, get) => ({
     const { _channel } = get();
     if (!_channel) return;
     _channel.send({ type: 'broadcast', event: 'spec_saved', payload: { savedByEmail } });
+  },
+
+  broadcastSaveLock: (email) => {
+    const { _channel } = get();
+    if (!_channel) return;
+    _channel.send({ type: 'broadcast', event: 'save_lock', payload: { email } });
+  },
+
+  broadcastSaveUnlock: () => {
+    const { _channel } = get();
+    if (!_channel) return;
+    _channel.send({ type: 'broadcast', event: 'save_unlock', payload: {} });
   },
 
   clearRemoteChange: () => set({ hasRemoteChange: false, remoteChangedBy: null }),

@@ -113,6 +113,10 @@ interface ApiSpecStore {
   filterTag: string | null;
   activeProjectId: string | null;
   currentUserRole: 'owner' | 'editor' | 'viewer' | null;
+  /** ISO timestamp of when the current project was last loaded/saved (server value). Used for optimistic locking. */
+  localUpdatedAt: string | null;
+  /** ISO timestamp when we last successfully saved to Supabase. */
+  lastSavedAt: string | null;
 
   loadProjectFromSupabase: (id: string, role?: 'owner' | 'editor' | 'viewer') => Promise<void>;
   createNewProject: (name: string) => Promise<boolean>;
@@ -173,6 +177,8 @@ export const useApiSpecStore = create<ApiSpecStore>()(
       activeEndpointId: DEFAULT_SPEC.endpoints[0]?.id ?? null,
       activeProjectId: null,
       currentUserRole: null,
+      localUpdatedAt: null,
+      lastSavedAt: null,
       history: [],
       historyIndex: -1,
       searchQuery: '',
@@ -181,7 +187,7 @@ export const useApiSpecStore = create<ApiSpecStore>()(
       loadProjectFromSupabase: async (id: string, role: 'owner' | 'editor' | 'viewer' = 'owner') => {
         const { data, error } = await supabase
           .from('projects')
-          .select('spec_data')
+          .select('spec_data, updated_at')
           .eq('id', id)
           .single();
 
@@ -198,6 +204,8 @@ export const useApiSpecStore = create<ApiSpecStore>()(
           activeProjectId: id,
           currentUserRole: role,
           activeEndpointId: spec.endpoints[0]?.id ?? null,
+          localUpdatedAt: (data as any).updated_at ?? null,
+          lastSavedAt: (data as any).updated_at ?? null,
         });
       },
 
@@ -248,9 +256,34 @@ export const useApiSpecStore = create<ApiSpecStore>()(
       },
 
       saveProjectToSupabase: async () => {
-        const { spec, activeProjectId } = get();
+        const { spec, activeProjectId, localUpdatedAt } = get();
         if (!activeProjectId) return;
 
+        // ── Optimistic locking: check if someone else saved since we loaded ──
+        const { data: current, error: checkErr } = await supabase
+          .from('projects')
+          .select('updated_at')
+          .eq('id', activeProjectId)
+          .single();
+
+        if (checkErr) {
+          const { toast } = await import('react-hot-toast');
+          toast.error(`Failed to save: ${checkErr.message}`);
+          return;
+        }
+
+        const serverUpdatedAt: string | null = (current as any)?.updated_at ?? null;
+
+        // Timestamps from Supabase may include sub-second precision; normalise to seconds.
+        const toSec = (ts: string | null) => ts ? ts.slice(0, 19) : null;
+        if (localUpdatedAt && serverUpdatedAt && toSec(serverUpdatedAt) !== toSec(localUpdatedAt)) {
+          // Conflict — caller (Header) will catch this and show the dialog.
+          const err = new Error('SAVE_CONFLICT');
+          (err as any).serverUpdatedAt = serverUpdatedAt;
+          throw err;
+        }
+
+        // ── Proceed with save ─────────────────────────────────────────────────
         const { error } = await supabase
           .from('projects')
           .update({ spec_data: spec, name: spec.info.title })
@@ -262,6 +295,15 @@ export const useApiSpecStore = create<ApiSpecStore>()(
           toast.error(`Failed to save project: ${error.message}`);
           return;
         }
+
+        // ── Update localUpdatedAt so subsequent saves don't false-alarm ───────
+        const { data: saved } = await supabase
+          .from('projects')
+          .select('updated_at')
+          .eq('id', activeProjectId)
+          .single();
+        const newTs: string | null = (saved as any)?.updated_at ?? null;
+        set({ localUpdatedAt: newTs, lastSavedAt: newTs ?? new Date().toISOString() });
 
         // Notify collaborators via Realtime broadcast
         const { data: userData } = await supabase.auth.getUser();
