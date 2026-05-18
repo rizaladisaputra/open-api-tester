@@ -434,14 +434,21 @@ export function apiSpecToOpenApi3(spec: ApiSpec, format: 'json' | 'yaml' = 'yaml
   for (const ep of spec.endpoints) {
     if (!paths[ep.path]) paths[ep.path] = {};
 
-    const pathParams = ep.parameters.filter((p) => p.in === 'path');
+    const extractedPathParams = extractPathParams(ep.path);
+    const userPathParams = ep.parameters.filter((p) => p.in === 'path');
     const queryParams = ep.parameters.filter((p) => p.in === 'query');
     const headerParams = ep.parameters.filter((p) => p.in === 'header');
 
-    const parameters = [...pathParams, ...queryParams, ...headerParams].map((p) => ({
+    // Merge path parameters so Swagger UI has the required param
+    const finalPathParams = extractedPathParams.map(ext => {
+      const userDef = userPathParams.find(p => p.name === ext.name);
+      return userDef || ext;
+    });
+
+    const parameters = [...finalPathParams, ...queryParams, ...headerParams].map((p) => ({
       name: p.name,
       in: p.in,
-      required: p.required,
+      required: p.in === 'path' ? true : p.required,
       description: p.description,
       schema: p.schema,
     }));
